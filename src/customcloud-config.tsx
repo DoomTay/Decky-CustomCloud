@@ -15,35 +15,35 @@ import { useEffect, useState } from "react";
 import { FaCloudUploadAlt, FaCloudDownloadAlt, FaCog } from "react-icons/fa";
 
 export default function CustomCloudConfig() {
-    function getInstalledGames()
-    {
-        var games = [{data: 13250, label: "Unreal Gold"},
-            {data: 338930, label: "Transformers: Devastation"},
-            {data: 480490, label: "Prey"},
-            {data: 379720, label: "Doom (2016)"}
-        ]
-        return games;
-    }
-
-    var installedGames = getInstalledGames();
-
-    const updateGameInfo = async(gameSelection: SingleDropdownOption) =>
-    {
-        SteamClient.Apps.RegisterForAppDetails(gameSelection.data,(details) => {
-            const gameInfoText = details;
-            setGameInfoText(gameInfoText);
-        })
-    }
-
-    const [gameInfoText, setGameInfoText] = useState<AppDetails | undefined>();
-
-    useEffect(() =>
-    {
-        updateGameInfo(installedGames[0]);
-    }, [])
-
     function ConfigContent()
     {
+        function getInstalledGames()
+        {
+            var games = [{data: 13250, label: "Unreal Gold"},
+                {data: 338930, label: "Transformers: Devastation"},
+                {data: 480490, label: "Prey"},
+                {data: 379720, label: "Doom (2016)"}
+            ]
+            return games;
+        }
+
+        var installedGames = getInstalledGames();
+
+        const updateGameInfo = async(gameSelection: SingleDropdownOption) =>
+        {
+            SteamClient.Apps.RegisterForAppDetails(gameSelection.data,(details) => {
+                const gameInfoText = details;
+                setGameInfoText(gameInfoText);
+            })
+        }
+
+        const [gameInfoText, setGameInfoText] = useState<AppDetails | undefined>();
+
+        useEffect(() =>
+        {
+            updateGameInfo(installedGames[0]);
+        }, [])
+    
         return (
         <DialogBody>
             <DialogControlsSection>
@@ -59,6 +59,7 @@ export default function CustomCloudConfig() {
             <DialogControlsSectionHeader>Config Data</DialogControlsSectionHeader>
             <ToggleField
                 label="Push to cloud after ending game"
+                disabled={gameInfoText?.iInstallFolder == -1}
                 layout="inline"
                 checked={true}
             >
@@ -74,6 +75,7 @@ export default function CustomCloudConfig() {
             <DialogControlsSection>
             <ToggleField
                 label="Pull from cloud when starting game"
+                disabled={gameInfoText?.iInstallFolder == -1}
                 layout="inline"
                 checked={true}
             >
