@@ -5,6 +5,7 @@ import os
 # and add the `decky-loader/plugin/imports` path to `python.analysis.extraPaths` in `.vscode/settings.json`
 import decky
 import asyncio
+import random
 
 class Plugin:
     # A normal method. It can be called from the TypeScript side using @decky/api.
@@ -16,10 +17,16 @@ class Plugin:
         # Passing through a bunch of random data, just as an example
         await decky.emit("timer_event", "Hello from the backend!", True, 2)
 
+    async def get_status(self):
+        return self.status
+
     # Asyncio-compatible long-running code, executed in a task when the plugin is loaded
     async def _main(self):
         self.loop = asyncio.get_event_loop()
         decky.logger.info("Hello World!")
+
+        self.sync_progress = 0
+        self.status = "idle"
 
     # Function called first during the unload process, utilize this to handle your plugin being stopped, but not
     # completely removed
@@ -35,6 +42,42 @@ class Plugin:
 
     async def start_timer(self):
         self.loop.create_task(self.long_running())
+
+    async def rclone_push_config(self):
+        self.sync_progress = 0
+        self.status = "uploading_config"
+
+        self.loop.create_task(self.update_progress())
+
+    async def rclone_push_save(self):
+        self.sync_progress = 0
+        self.status = "uploading_save"
+
+        self.loop.create_task(self.update_progress())
+    
+    async def rclone_pull_config(self):
+        self.sync_progress = 0
+        self.status = "downloading_config"
+
+        self.loop.create_task(self.update_progress())
+
+    async def rclone_pull_save(self):
+        self.sync_progress = 0
+        self.status = "downloading_save"
+
+        self.loop.create_task(self.update_progress())
+
+    async def update_progress(self):
+        while self.sync_progress < 100:
+            self.sync_progress += random.randint(2,25)
+
+            self.sync_progress = min(self.sync_progress,100)
+
+            if self.sync_progress < 100: await decky.emit("progress_event", self.sync_progress, "Task still in progress", False)
+            await asyncio.sleep(1)
+        
+        await decky.emit("progress_event", 100, "Task complete")
+        self.status = "idle"
 
     # Migrations that should be performed before entering `_main()`.
     async def _migration(self):

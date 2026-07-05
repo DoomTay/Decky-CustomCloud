@@ -1,22 +1,56 @@
+import { call, addEventListener, removeEventListener, toaster } from "@decky/api";
 import {
   PanelSectionRow,
   Dropdown,
   SingleDropdownOption,
-  Focusable,
   ToggleField,
   ButtonItem,
   SidebarNavigation,
   DialogBody,
   DialogControlsSectionHeader,
-  DialogControlsSection
+  DialogControlsSection,
+  ProgressBarWithInfo
 } from "@decky/ui";
 import { AppDetails } from "@decky/ui/dist/globals/steam-client/App";
 import { useEffect, useState } from "react";
 import { FaCloudUploadAlt, FaCloudDownloadAlt, FaCog } from "react-icons/fa";
 
 export default function CustomCloudConfig() {
+
+
     function ConfigContent()
     {
+        const [rcloneStatus, setRcloneStatus] = useState("idle");
+        const [rcloneProgress, setRcloneProgress] = useState<number | undefined>()
+        const [gameInfoText, setGameInfoText] = useState<AppDetails | undefined>();
+
+        useEffect(() => {
+            const updateRcloneProgress = (progress: number) =>
+            {
+                setRcloneProgress(progress)
+                updateRcloneStatus();
+
+                if(progress == 100)
+                {
+                    console.log("Status: ", rcloneStatus)
+                    toaster.toast({
+                        title: "Decky CustomCloud",
+                        body: "Syncing complete"
+                    });
+                }
+            }
+
+            addEventListener('progress_event', updateRcloneProgress);
+
+            return () => {
+                removeEventListener('progress_event', updateRcloneProgress);
+
+                setRcloneProgress(undefined);
+
+                updateRcloneStatus();
+                }
+        }, [])
+
         function getInstalledGames()
         {
             var games = [{data: 13250, label: "Unreal Gold"},
@@ -29,6 +63,14 @@ export default function CustomCloudConfig() {
 
         var installedGames = getInstalledGames();
 
+        const updateRcloneStatus = async() =>
+        {
+            let newStatus = await call<[], string>("get_status");
+
+            setRcloneStatus(newStatus)
+        }
+        updateRcloneStatus();
+
         const updateGameInfo = async(gameSelection: SingleDropdownOption) =>
         {
             SteamClient.Apps.RegisterForAppDetails(gameSelection.data,(details) => {
@@ -36,9 +78,6 @@ export default function CustomCloudConfig() {
                 setGameInfoText(gameInfoText);
             })
         }
-
-        const [gameInfoText, setGameInfoText] = useState<AppDetails | undefined>();
-
         useEffect(() =>
         {
             updateGameInfo(installedGames[0]);
@@ -58,42 +97,117 @@ export default function CustomCloudConfig() {
             <DialogControlsSection>
             <DialogControlsSectionHeader>Config Data</DialogControlsSectionHeader>
             <ToggleField
-                label="Push to cloud after ending game"
+                label="Push config data to cloud after ending game"
                 disabled={gameInfoText?.iInstallFolder == -1}
                 layout="inline"
                 checked={true}
             >
             </ToggleField>
-            <ButtonItem
-                onClick={() => {}}
+            {rcloneStatus != "uploading_config" ?
+            (<ButtonItem
+                onClick={() => {
+                    call<[]>("rclone_push_config");
+                    updateRcloneStatus();
+                }}
                 label="Push to cloud"
-                disabled={gameInfoText?.iInstallFolder == -1}
+                disabled={gameInfoText?.iInstallFolder == -1 || rcloneStatus != "idle"}
             >
             <FaCloudUploadAlt />
             </ButtonItem>
+            ) : (
+            <ProgressBarWithInfo
+                nProgress={rcloneProgress}
+                label="Push to cloud"
+                sOperationText={"Uploading " + rcloneProgress + "%"}
+            />
+            )}
             </DialogControlsSection>
             <DialogControlsSection>
             <ToggleField
-                label="Pull from cloud when starting game"
+                label="Pull config data from cloud when starting game"
                 disabled={gameInfoText?.iInstallFolder == -1}
                 layout="inline"
                 checked={true}
             >
             </ToggleField>
-            <ButtonItem
-                onClick={() => {}}
+            {rcloneStatus != "downloading_config" ?
+            (<ButtonItem
+                onClick={() => {
+                    call<[]>("rclone_pull_config");
+                    updateRcloneStatus();
+                }}
                 label="Pull from cloud"
-                disabled={gameInfoText?.iInstallFolder == -1}
+                disabled={gameInfoText?.iInstallFolder == -1 || rcloneStatus != "idle"}
             >
                 <FaCloudDownloadAlt />
             </ButtonItem>
+            ) : (
+            <ProgressBarWithInfo
+                nProgress={rcloneProgress}
+                label="Pull from cloud"
+                sOperationText={"Downloading " + rcloneProgress + "%"}
+            />
+            )}
+            </DialogControlsSection>
+            <DialogControlsSection>
+            <DialogControlsSectionHeader>Save Data</DialogControlsSectionHeader>
+            <ToggleField
+                label="Push save data to cloud after ending game"
+                disabled={gameInfoText?.iInstallFolder == -1}
+                layout="inline"
+                checked={true}
+            >
+            </ToggleField>
+            {rcloneStatus != "uploading_save" ?
+            (<ButtonItem
+                onClick={() => {
+                    call<[]>("rclone_push_save");
+                    updateRcloneStatus();
+                }}
+                label="Push to cloud"
+                disabled={gameInfoText?.iInstallFolder == -1 || rcloneStatus != "idle"}
+            >
+            <FaCloudUploadAlt />
+            </ButtonItem>
+            ) : (
+            <ProgressBarWithInfo
+                nProgress={rcloneProgress}
+                label="Push to cloud"
+                sOperationText={"Uploading " + rcloneProgress + "%"}
+            />
+            )}
+            </DialogControlsSection>
+            <DialogControlsSection>
+            <ToggleField
+                label="Pull save data from cloud when starting game"
+                disabled={gameInfoText?.iInstallFolder == -1}
+                layout="inline"
+                checked={true}
+            >
+            </ToggleField>
+            {rcloneStatus != "downloading_save" ?
+            (<ButtonItem
+                onClick={() => {
+                    call<[]>("rclone_pull_save");
+                    updateRcloneStatus();
+                }}
+                label="Pull from cloud"
+                disabled={gameInfoText?.iInstallFolder == -1 || rcloneStatus != "idle"}
+            >
+                <FaCloudDownloadAlt />
+            </ButtonItem>
+            ) : (
+            <ProgressBarWithInfo
+                nProgress={rcloneProgress}
+                label="Pull from cloud"
+                sOperationText={"Downloading " + rcloneProgress + "%"}
+            />
+            )}
             </DialogControlsSection>
             <PanelSectionRow>
-                <Focusable>
-                    <pre>
-                        {JSON.stringify(gameInfoText,null,"\t")}
-                    </pre>
-                </Focusable>
+                <pre>
+                    {JSON.stringify(gameInfoText,null,"\t")}
+                </pre>
             </PanelSectionRow>
         </DialogBody>
         );
