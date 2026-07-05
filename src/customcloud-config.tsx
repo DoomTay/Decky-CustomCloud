@@ -9,11 +9,14 @@ import {
   DialogBody,
   DialogControlsSectionHeader,
   DialogControlsSection,
-  ProgressBarWithInfo
+  ProgressBarWithInfo,
+  ConfirmModal,
+  showModal
 } from "@decky/ui";
 import { AppDetails } from "@decky/ui/dist/globals/steam-client/App";
 import { useEffect, useState } from "react";
-import { FaCloudUploadAlt, FaCloudDownloadAlt, FaCog } from "react-icons/fa";
+import { FaCloudUploadAlt, FaCloudDownloadAlt, FaCog, FaSlash } from "react-icons/fa";
+import GamePaths from "./customcloud-gamepaths";
 
 export default function CustomCloudConfig() {
 
@@ -23,6 +26,7 @@ export default function CustomCloudConfig() {
         const [rcloneStatus, setRcloneStatus] = useState("idle");
         const [rcloneProgress, setRcloneProgress] = useState<number | undefined>()
         const [gameInfoText, setGameInfoText] = useState<AppDetails | undefined>();
+        const [cloudDownloadSaveEnabled, setCloudDownloadSaveEnabled] = useState(true)
 
         useEffect(() => {
             const updateRcloneProgress = (progress: number) =>
@@ -180,9 +184,22 @@ export default function CustomCloudConfig() {
             <DialogControlsSection>
             <ToggleField
                 label="Pull save data from cloud when starting game"
+                onChange={(checked) => {
+                    setCloudDownloadSaveEnabled(checked)
+                    if(checked && gameInfoText?.bCloudEnabledForApp)
+                    {
+                        showModal(
+                            <ConfirmModal
+                            strTitle="Warning"
+                            strDescription="Steam Cloud is enabled for this game. Therefore, it is not recommended to have this on, as downloading from your cloud may cause interference with Steam Cloud. Enable this setting anyway?"
+                            onCancel={() => (setCloudDownloadSaveEnabled(false))}
+                            />
+                        )
+                    }
+                }}
                 disabled={gameInfoText?.iInstallFolder == -1}
                 layout="inline"
-                checked={true}
+                checked={cloudDownloadSaveEnabled}
             >
             </ToggleField>
             {rcloneStatus != "downloading_save" ?
@@ -220,8 +237,18 @@ export default function CustomCloudConfig() {
             content: (
                 <ConfigContent />
             ),
+            visible: true,
             route: '/customcloud-config/config',
-            icon: <FaCog />,
+            icon: <FaCog />
+        },
+        {
+            title: "Game Paths",
+            content: (
+                <GamePaths />
+            ),
+            visible: true,
+            route: '/customcloud-config/gamepaths',
+            icon: <FaSlash />
         }
         ]
     } />;
