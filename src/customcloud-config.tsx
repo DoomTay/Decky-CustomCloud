@@ -125,7 +125,8 @@ export default function CustomCloudConfig() {
             <ToggleField
                 label="Push config data to cloud after ending game"
                 onChange={(checked) => {
-                    setSetting("sync_configs_after_game", checked);
+                    setCloudUploadConfigEnabled(checked);
+                    setSetting("sync_config_after_game", checked);
                 }}
                 disabled={!appIsInstalled}
                 layout="inline"
@@ -166,13 +167,13 @@ export default function CustomCloudConfig() {
                             onCancel={() => {
                                 setCloudDownloadConfigEnabled(false);
 
-                                setSetting("sync_save_before_game", false);
+                                setSetting("sync_config_before_game", false);
                             }}
                             />
                         )
                     }
 
-                    setSetting("sync_save_before_game", checked);
+                    setSetting("sync_config_before_game", checked);
                 }}
                 disabled={!appIsInstalled}
                 layout="inline"
@@ -203,6 +204,7 @@ export default function CustomCloudConfig() {
             <ToggleField
                 label="Push save data to cloud after ending game"
                 onChange={(checked) => {
+                    setCloudUploadSaveEnabled(checked);
                     setSetting("sync_save_after_game", checked);
                 }}
                 disabled={!appIsInstalled}
