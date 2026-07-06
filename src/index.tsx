@@ -31,9 +31,7 @@ function Content() {
 };
 
 export default definePlugin(() => {
-  routerHook.addRoute("/customcloud-config", CustomCloudConfig, {
-    exact: true,
-  });
+  routerHook.addRoute("/customcloud-config", CustomCloudConfig, {});
 
  /*  const contextMenuHook = showContextMenu({
     label: "CustomCloud Settings",
