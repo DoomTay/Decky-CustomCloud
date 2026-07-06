@@ -31,6 +31,7 @@ export default function CustomCloudConfig() {
         const [cloudUploadSaveEnabled, setCloudUploadSaveEnabled] = useState(true)
         const [cloudDownloadSaveEnabled, setCloudDownloadSaveEnabled] = useState(true)
         const [steamCloudEnabled, setSteamCloudEnabled] = useState(true)
+        const [appIsInstalled, setAppIsInstalled] = useState(true)
 
         useEffect(() => {
             const updateRcloneProgress = (progress: number) =>
@@ -84,13 +85,15 @@ export default function CustomCloudConfig() {
             const { unregister } = SteamClient.Apps.RegisterForAppDetails(gameSelection.data, async (details) => {
                 unregister();
 
+                setSteamCloudEnabled(details.bCloudEnabledForApp)
+                setAppIsInstalled(details.iInstallFolder != -1)
+
                 const newSettings = await call<[appInfo: AppDetails], any>("get_app_settings",details);
 
                 setCloudUploadConfigEnabled(newSettings['sync_config_after_game'])
                 setCloudDownloadConfigEnabled(newSettings['sync_config_before_game'])
                 setCloudUploadSaveEnabled(newSettings['sync_save_after_game'])
                 setCloudDownloadSaveEnabled(newSettings['sync_save_before_game'])
-                setSteamCloudEnabled(newSettings['steam_cloud_enabled'])
 
                 setGameInfoText(newSettings);
             })
@@ -124,7 +127,7 @@ export default function CustomCloudConfig() {
                 onChange={(checked) => {
                     setSetting("sync_configs_after_game", checked);
                 }}
-                disabled={gameInfoText?.iInstallFolder == -1}
+                disabled={!appIsInstalled}
                 layout="inline"
                 checked={cloudUploadConfigEnabled}
             >
@@ -136,7 +139,7 @@ export default function CustomCloudConfig() {
                     updateRcloneStatus();
                 }}
                 label="Push to cloud"
-                disabled={gameInfoText?.iInstallFolder == -1 || rcloneStatus != "idle"}
+                disabled={!appIsInstalled || rcloneStatus != "idle"}
             >
             <FaCloudUploadAlt />
             </ButtonItem>
@@ -171,7 +174,7 @@ export default function CustomCloudConfig() {
 
                     setSetting("sync_save_before_game", checked);
                 }}
-                disabled={gameInfoText?.iInstallFolder == -1}
+                disabled={!appIsInstalled}
                 layout="inline"
                 checked={cloudDownloadConfigEnabled}
             >
@@ -183,7 +186,7 @@ export default function CustomCloudConfig() {
                     updateRcloneStatus();
                 }}
                 label="Pull from cloud"
-                disabled={gameInfoText?.iInstallFolder == -1 || rcloneStatus != "idle"}
+                disabled={!appIsInstalled || rcloneStatus != "idle"}
             >
                 <FaCloudDownloadAlt />
             </ButtonItem>
@@ -202,7 +205,7 @@ export default function CustomCloudConfig() {
                 onChange={(checked) => {
                     setSetting("sync_save_after_game", checked);
                 }}
-                disabled={gameInfoText?.iInstallFolder == -1}
+                disabled={!appIsInstalled}
                 layout="inline"
                 checked={cloudUploadSaveEnabled}
             >
@@ -214,7 +217,7 @@ export default function CustomCloudConfig() {
                     updateRcloneStatus();
                 }}
                 label="Push to cloud"
-                disabled={gameInfoText?.iInstallFolder == -1 || rcloneStatus != "idle"}
+                disabled={!appIsInstalled || rcloneStatus != "idle"}
             >
             <FaCloudUploadAlt />
             </ButtonItem>
@@ -249,7 +252,7 @@ export default function CustomCloudConfig() {
 
                     setSetting("sync_save_before_game", checked);
                 }}
-                disabled={gameInfoText?.iInstallFolder == -1}
+                disabled={!appIsInstalled}
                 layout="inline"
                 checked={cloudDownloadSaveEnabled}
             >
@@ -261,7 +264,7 @@ export default function CustomCloudConfig() {
                     updateRcloneStatus();
                 }}
                 label="Pull from cloud"
-                disabled={gameInfoText?.iInstallFolder == -1 || rcloneStatus != "idle"}
+                disabled={!appIsInstalled || rcloneStatus != "idle"}
             >
                 <FaCloudDownloadAlt />
             </ButtonItem>

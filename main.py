@@ -42,8 +42,7 @@ class Plugin:
             self.app_settings.setSetting("sync_save_after_game", True)
             self.app_settings.setSetting("sync_save_before_game", not cloud_enabled_for_game)
             self.app_settings.commit()
-
-        self.app_settings.setSetting("steam_cloud_enabled", cloud_enabled_for_game)
+            
         self.app_settings.commit()
 
         return self.app_settings.settings
