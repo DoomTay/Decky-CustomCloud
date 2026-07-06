@@ -6,6 +6,9 @@ import os
 import decky
 import asyncio
 import random
+from settings import SettingsManager
+
+settingsDir = os.environ["DECKY_PLUGIN_SETTINGS_DIR"]
 
 class Plugin:
     # A normal method. It can be called from the TypeScript side using @decky/api.
@@ -28,6 +31,27 @@ class Plugin:
         self.sync_progress = 0
         self.status = "idle"
 
+    async def get_app_settings(self,appInfo):
+        self.app_settings = SettingsManager(name=f"settings_{appInfo['unAppID']}", settings_directory=settingsDir)
+
+        cloud_enabled_for_game = appInfo['bCloudEnabledForApp']
+
+        if not self.app_settings.settings:
+            self.app_settings.setSetting("sync_config_after_game", True)
+            self.app_settings.setSetting("sync_config_before_game", not cloud_enabled_for_game)
+            self.app_settings.setSetting("sync_save_after_game", True)
+            self.app_settings.setSetting("sync_save_before_game", not cloud_enabled_for_game)
+            self.app_settings.commit()
+
+        self.app_settings.setSetting("steam_cloud_enabled", cloud_enabled_for_game)
+        self.app_settings.commit()
+
+        return self.app_settings.settings
+    
+    async def set_app_setting(self, key, value):
+        self.app_settings.setSetting(key, value)
+        self.app_settings.commit()
+        
     # Function called first during the unload process, utilize this to handle your plugin being stopped, but not
     # completely removed
     async def _unload(self):

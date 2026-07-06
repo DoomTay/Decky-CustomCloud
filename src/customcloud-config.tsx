@@ -25,8 +25,12 @@ export default function CustomCloudConfig() {
     {
         const [rcloneStatus, setRcloneStatus] = useState("idle");
         const [rcloneProgress, setRcloneProgress] = useState<number | undefined>()
-        const [gameInfoText, setGameInfoText] = useState<AppDetails | undefined>();
+        const [gameInfoText, setGameInfoText] = useState<any | undefined>();
+        const [cloudUploadConfigEnabled, setCloudUploadConfigEnabled] = useState(true)
+        const [cloudDownloadConfigEnabled, setCloudDownloadConfigEnabled] = useState(true)
+        const [cloudUploadSaveEnabled, setCloudUploadSaveEnabled] = useState(true)
         const [cloudDownloadSaveEnabled, setCloudDownloadSaveEnabled] = useState(true)
+        const [steamCloudEnabled, setSteamCloudEnabled] = useState(true)
 
         useEffect(() => {
             const updateRcloneProgress = (progress: number) =>
@@ -77,11 +81,26 @@ export default function CustomCloudConfig() {
 
         const updateGameInfo = async(gameSelection: SingleDropdownOption) =>
         {
-            SteamClient.Apps.RegisterForAppDetails(gameSelection.data,(details) => {
-                const gameInfoText = details;
-                setGameInfoText(gameInfoText);
+            const { unregister } = SteamClient.Apps.RegisterForAppDetails(gameSelection.data, async (details) => {
+                unregister();
+
+                const newSettings = await call<[appInfo: AppDetails], any>("get_app_settings",details);
+
+                setCloudUploadConfigEnabled(newSettings['sync_config_after_game'])
+                setCloudDownloadConfigEnabled(newSettings['sync_config_before_game'])
+                setCloudUploadSaveEnabled(newSettings['sync_save_after_game'])
+                setCloudDownloadSaveEnabled(newSettings['sync_save_before_game'])
+                setSteamCloudEnabled(newSettings['steam_cloud_enabled'])
+
+                setGameInfoText(newSettings);
             })
         }
+
+        function setSetting(key: string, value: any)
+        {
+            call<[key: string, value: any], any>("set_app_setting",key, value);
+        }
+
         useEffect(() =>
         {
             updateGameInfo(installedGames[0]);
@@ -102,9 +121,12 @@ export default function CustomCloudConfig() {
             <DialogControlsSectionHeader>Config Data</DialogControlsSectionHeader>
             <ToggleField
                 label="Push config data to cloud after ending game"
+                onChange={(checked) => {
+                    setSetting("sync_configs_after_game", checked);
+                }}
                 disabled={gameInfoText?.iInstallFolder == -1}
                 layout="inline"
-                checked={true}
+                checked={cloudUploadConfigEnabled}
             >
             </ToggleField>
             {rcloneStatus != "uploading_config" ?
@@ -129,9 +151,29 @@ export default function CustomCloudConfig() {
             <DialogControlsSection>
             <ToggleField
                 label="Pull config data from cloud when starting game"
+                onChange={(checked) => {
+                    setCloudDownloadConfigEnabled(checked);
+
+                    if(checked && steamCloudEnabled)
+                    {
+                        showModal(
+                            <ConfirmModal
+                            strTitle="Warning"
+                            strDescription="Steam Cloud is enabled for this game. Therefore, it is not recommended to have this on, as downloading from your cloud may cause interference with Steam Cloud. Enable this setting anyway?"
+                            onCancel={() => {
+                                setCloudDownloadConfigEnabled(false);
+
+                                setSetting("sync_save_before_game", false);
+                            }}
+                            />
+                        )
+                    }
+
+                    setSetting("sync_save_before_game", checked);
+                }}
                 disabled={gameInfoText?.iInstallFolder == -1}
                 layout="inline"
-                checked={true}
+                checked={cloudDownloadConfigEnabled}
             >
             </ToggleField>
             {rcloneStatus != "downloading_config" ?
@@ -157,9 +199,12 @@ export default function CustomCloudConfig() {
             <DialogControlsSectionHeader>Save Data</DialogControlsSectionHeader>
             <ToggleField
                 label="Push save data to cloud after ending game"
+                onChange={(checked) => {
+                    setSetting("sync_save_after_game", checked);
+                }}
                 disabled={gameInfoText?.iInstallFolder == -1}
                 layout="inline"
-                checked={true}
+                checked={cloudUploadSaveEnabled}
             >
             </ToggleField>
             {rcloneStatus != "uploading_save" ?
@@ -185,17 +230,24 @@ export default function CustomCloudConfig() {
             <ToggleField
                 label="Pull save data from cloud when starting game"
                 onChange={(checked) => {
-                    setCloudDownloadSaveEnabled(checked)
-                    if(checked && gameInfoText?.bCloudEnabledForApp)
+                    setCloudDownloadSaveEnabled(checked);
+
+                    if(checked && steamCloudEnabled)
                     {
                         showModal(
                             <ConfirmModal
                             strTitle="Warning"
                             strDescription="Steam Cloud is enabled for this game. Therefore, it is not recommended to have this on, as downloading from your cloud may cause interference with Steam Cloud. Enable this setting anyway?"
-                            onCancel={() => (setCloudDownloadSaveEnabled(false))}
+                            onCancel={() => {
+                                setCloudDownloadSaveEnabled(false);
+
+                                setSetting("sync_save_before_game", false);
+                            }}
                             />
                         )
                     }
+
+                    setSetting("sync_save_before_game", checked);
                 }}
                 disabled={gameInfoText?.iInstallFolder == -1}
                 layout="inline"
