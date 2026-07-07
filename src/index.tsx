@@ -9,7 +9,7 @@ import {
   definePlugin,
   routerHook
 } from "@decky/api"
-import { FaShip } from "react-icons/fa";
+import { FaCloud } from "react-icons/fa";
 import CustomCloudConfig from "./customcloud-config";
 
 function Content() {
@@ -60,7 +60,7 @@ export default definePlugin(() => {
     // The content of your plugin's menu
     content: <Content />,
     // The icon displayed in the plugin list
-    icon: <FaShip />,
+    icon: <FaCloud />,
     // The function triggered when your plugin unloads
     onDismount() {
       routerHook.removeRoute("/customcloud-config");
