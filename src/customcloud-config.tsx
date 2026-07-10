@@ -21,9 +21,8 @@ import GamePaths from "./customcloud-gamepaths";
 interface ConfigContentProps {
     selectedGame: SingleDropdownOption | null,
     appIsInstalled: boolean,
-    setSelectedGame: React.Dispatch<React.SetStateAction<SingleDropdownOption | null>>;
-    setAppIsInstalled: React.Dispatch<React.SetStateAction<boolean>>;
-
+    setSelectedGame: React.Dispatch<React.SetStateAction<SingleDropdownOption | null>>,
+    setAppIsInstalled: React.Dispatch<React.SetStateAction<boolean>>
 }
 
 function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsInstalled}: ConfigContentProps)
@@ -37,6 +36,8 @@ function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsI
     const [cloudDownloadSaveEnabled, setCloudDownloadSaveEnabled] = useState(true);
     const [steamCloudEnabled, setSteamCloudEnabled] = useState(true);
     const [installedGames, setInstalledGames] = useState<SingleDropdownOption[]>([]);
+
+    const CLOUD_WARNING = "Steam Cloud is enabled for this game. Therefore, it is not recommended to have this on, as downloading from your cloud may cause interference with Steam Cloud. Enable this setting anyway?";
 
     async function getInstalledGames()
     {
@@ -169,33 +170,16 @@ function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsI
         )}
         </DialogControlsSection>
         <DialogControlsSection>
-        <ToggleField
+        <ToggleFieldWithWarning
             label="Pull config data from cloud when starting game"
-            onChange={(checked) => {
-                setCloudDownloadConfigEnabled(checked);
-
-                if(checked && steamCloudEnabled)
-                {
-                    showModal(
-                        <ConfirmModal
-                        strTitle="Warning"
-                        strDescription="Steam Cloud is enabled for this game. Therefore, it is not recommended to have this on, as downloading from your cloud may cause interference with Steam Cloud. Enable this setting anyway?"
-                        onCancel={() => {
-                            setCloudDownloadConfigEnabled(false);
-
-                            setSetting("sync_config_before_game", false);
-                        }}
-                        />
-                    )
-                }
-
-                setSetting("sync_config_before_game", checked);
-            }}
+            setter={setCloudDownloadConfigEnabled}
+            configSettingFunction={setSetting}
+            configSetting="sync_config_before_game"
+            warning={CLOUD_WARNING}
             disabled={!appIsInstalled}
-            layout="inline"
             checked={cloudDownloadConfigEnabled}
-        >
-        </ToggleField>
+            isSteamCloudEnabled={steamCloudEnabled}
+        />
         {rcloneStatus != "downloading_config" ?
         (<ButtonItem
             onClick={() => {
@@ -248,33 +232,16 @@ function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsI
         )}
         </DialogControlsSection>
         <DialogControlsSection>
-        <ToggleField
+        <ToggleFieldWithWarning
             label="Pull save data from cloud when starting game"
-            onChange={(checked) => {
-                setCloudDownloadSaveEnabled(checked);
-
-                if(checked && steamCloudEnabled)
-                {
-                    showModal(
-                        <ConfirmModal
-                        strTitle="Warning"
-                        strDescription="Steam Cloud is enabled for this game. Therefore, it is not recommended to have this on, as downloading from your cloud may cause interference with Steam Cloud. Enable this setting anyway?"
-                        onCancel={() => {
-                            setCloudDownloadSaveEnabled(false);
-
-                            setSetting("sync_save_before_game", false);
-                        }}
-                        />
-                    )
-                }
-
-                setSetting("sync_save_before_game", checked);
-            }}
+            setter={setCloudDownloadSaveEnabled}
+            configSettingFunction={setSetting}
+            configSetting="sync_save_before_game"
+            warning={CLOUD_WARNING}
             disabled={!appIsInstalled}
-            layout="inline"
             checked={cloudDownloadSaveEnabled}
-        >
-        </ToggleField>
+            isSteamCloudEnabled={steamCloudEnabled}
+        />
         {rcloneStatus != "downloading_save" ?
         (<ButtonItem
             onClick={() => {
@@ -301,6 +268,47 @@ function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsI
         </PanelSectionRow>
     </DialogBody>
     );
+}
+
+interface ToggleFieldWithWarningProps {
+    label: string,
+    setter: React.Dispatch<React.SetStateAction<boolean>>,
+    configSettingFunction: (setting: string, checked: boolean) => void,
+    configSetting: string
+    warning: string,
+    disabled: boolean,
+    checked: boolean,
+    isSteamCloudEnabled: boolean
+}
+
+function ToggleFieldWithWarning({label, setter, configSettingFunction, configSetting, warning, disabled, checked, isSteamCloudEnabled}: ToggleFieldWithWarningProps) {
+    return <ToggleField
+        label={label}
+        onChange={(checked) => {
+            setter(checked);
+
+            if(checked && isSteamCloudEnabled)
+            {
+                showModal(
+                    <ConfirmModal
+                    strTitle="Warning"
+                    strDescription={warning}
+                    onCancel={() => {
+                        setter(false);
+
+                        configSettingFunction(configSetting, false);
+                    }}
+                    />
+                )
+            }
+
+            configSettingFunction(configSetting, checked);
+        }}
+        disabled={disabled}
+        layout="inline"
+        checked={checked}
+    >
+    </ToggleField>
 }
 
 export default function CustomCloudConfig() {
