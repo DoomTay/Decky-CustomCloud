@@ -21,8 +21,8 @@ import GamePaths from "./customcloud-gamepaths";
 interface ConfigContentProps {
     selectedGame: SingleDropdownOption | null,
     appIsInstalled: boolean,
-    setSelectedGame: (game: SingleDropdownOption | null) => void,
-    setAppIsInstalled: (isInstalled: boolean) => void
+    setSelectedGame: React.Dispatch<React.SetStateAction<SingleDropdownOption | null>>;
+    setAppIsInstalled: React.Dispatch<React.SetStateAction<boolean>>;
 
 }
 
@@ -47,13 +47,14 @@ function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsI
             {data: 1086940, label: "Baldur's Gate 3"}
         ]
         setInstalledGames(games);
+
+        setSelectedGame(games[0]);
+        updateGameInfo(games[0]);
     }
 
     useEffect(() =>
     {
         getInstalledGames();
-
-        if(!selectedGame) updateGameInfo(installedGames[0]);
     }, [])
 
     useEffect(() => {
