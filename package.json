@@ -1,6 +1,6 @@
 {
   "name": "decky-customcloud",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Neatly back up config and save data from Steam Deck to cloud storage",
   "type": "module",
   "scripts": {
@@ -10,7 +10,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/SteamDeckHomebrew/decky-plugin-template.git"
+    "url": "git+https://github.com/DoomTay/Decky-CustomCloud.git"
   },
   "keywords": [
     "decky",
@@ -22,9 +22,9 @@
   "author": "DoomTay",
   "license": "BSD-3-Clause",
   "bugs": {
-    "url": "https://github.com/SteamDeckHomebrew/decky-plugin-template/issues"
+    "url": "https://github.com/DoomTay/Decky-CustomCloud/issues"
   },
-  "homepage": "https://github.com/SteamDeckHomebrew/decky-plugin-template#readme",
+  "homepage": "https://github.com/DoomTay/Decky-CustomCloud#readme",
   "devDependencies": {
     "@decky/rollup": "^1.0.2",
     "@decky/ui": "^4.11.6",
