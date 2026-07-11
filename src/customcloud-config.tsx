@@ -14,7 +14,7 @@ import {
   showModal
 } from "@decky/ui";
 import { AppDetails } from "@decky/ui/dist/globals/steam-client/App";
-import { useEffect, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { FaCloudUploadAlt, FaCloudDownloadAlt, FaCog, FaSlash } from "react-icons/fa";
 import GamePaths from "./customcloud-gamepaths";
 
@@ -150,54 +150,44 @@ function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsI
             checked={cloudUploadConfigEnabled}
         >
         </ToggleField>
-        {rcloneStatus != "uploading_config" ?
-        (<ButtonItem
+        <ButtonProgressBarSwitch
+            switchCondition={rcloneStatus != "uploading_config"}
             onClick={() => {
                 call<[]>("rclone_push_config");
                 updateRcloneStatus();
             }}
             label="Push to cloud"
+            buttonBody={<FaCloudUploadAlt />}
             disabled={!appIsInstalled || rcloneStatus != "idle"}
-        >
-        <FaCloudUploadAlt />
-        </ButtonItem>
-        ) : (
-        <ProgressBarWithInfo
             nProgress={rcloneProgress}
-            label="Push to cloud"
             sOperationText={"Uploading " + rcloneProgress + "%"}
         />
-        )}
         </DialogControlsSection>
         <DialogControlsSection>
         <ToggleFieldWithWarning
             label="Pull config data from cloud when starting game"
-            setter={setCloudDownloadConfigEnabled}
-            configSettingFunction={setSetting}
-            configSetting="sync_config_before_game"
+            onChange={(checked) => {
+                setCloudDownloadConfigEnabled(checked);
+
+                setSetting("sync_config_before_game", checked);
+            }}
             warning={CLOUD_WARNING}
             disabled={!appIsInstalled}
             checked={cloudDownloadConfigEnabled}
             isSteamCloudEnabled={steamCloudEnabled}
         />
-        {rcloneStatus != "downloading_config" ?
-        (<ButtonItem
+        <ButtonProgressBarSwitch
+            switchCondition={rcloneStatus != "downloading_config"}
             onClick={() => {
                 call<[]>("rclone_pull_config");
                 updateRcloneStatus();
             }}
             label="Pull from cloud"
+            buttonBody={<FaCloudDownloadAlt />}
             disabled={!appIsInstalled || rcloneStatus != "idle"}
-        >
-            <FaCloudDownloadAlt />
-        </ButtonItem>
-        ) : (
-        <ProgressBarWithInfo
             nProgress={rcloneProgress}
-            label="Pull from cloud"
             sOperationText={"Downloading " + rcloneProgress + "%"}
         />
-        )}
         </DialogControlsSection>
         <DialogControlsSection>
         <DialogControlsSectionHeader>Save Data</DialogControlsSectionHeader>
@@ -212,54 +202,44 @@ function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsI
             checked={cloudUploadSaveEnabled}
         >
         </ToggleField>
-        {rcloneStatus != "uploading_save" ?
-        (<ButtonItem
+        <ButtonProgressBarSwitch
+            switchCondition={rcloneStatus != "uploading_save"}
             onClick={() => {
                 call<[]>("rclone_push_save");
                 updateRcloneStatus();
             }}
             label="Push to cloud"
+            buttonBody={<FaCloudUploadAlt />}
             disabled={!appIsInstalled || rcloneStatus != "idle"}
-        >
-        <FaCloudUploadAlt />
-        </ButtonItem>
-        ) : (
-        <ProgressBarWithInfo
             nProgress={rcloneProgress}
-            label="Push to cloud"
             sOperationText={"Uploading " + rcloneProgress + "%"}
         />
-        )}
         </DialogControlsSection>
         <DialogControlsSection>
         <ToggleFieldWithWarning
             label="Pull save data from cloud when starting game"
-            setter={setCloudDownloadSaveEnabled}
-            configSettingFunction={setSetting}
-            configSetting="sync_save_before_game"
+            onChange={(checked) => {
+                setCloudDownloadSaveEnabled(checked);
+
+                setSetting("sync_save_before_game", checked);
+            }}
             warning={CLOUD_WARNING}
             disabled={!appIsInstalled}
             checked={cloudDownloadSaveEnabled}
             isSteamCloudEnabled={steamCloudEnabled}
         />
-        {rcloneStatus != "downloading_save" ?
-        (<ButtonItem
+        <ButtonProgressBarSwitch
+            switchCondition={rcloneStatus != "downloading_save"}
             onClick={() => {
                 call<[]>("rclone_pull_save");
                 updateRcloneStatus();
             }}
             label="Pull from cloud"
+            buttonBody={<FaCloudDownloadAlt />}
             disabled={!appIsInstalled || rcloneStatus != "idle"}
-        >
-            <FaCloudDownloadAlt />
-        </ButtonItem>
-        ) : (
-        <ProgressBarWithInfo
             nProgress={rcloneProgress}
-            label="Pull from cloud"
             sOperationText={"Downloading " + rcloneProgress + "%"}
         />
-        )}
         </DialogControlsSection>
         <PanelSectionRow>
             <pre>
@@ -270,22 +250,48 @@ function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsI
     );
 }
 
+interface ButtonProgressBarSwitchProps {
+    switchCondition: boolean,
+    onClick: () => void,
+    label: string,
+    buttonBody: ReactNode
+    disabled: boolean,
+    nProgress: number | undefined,
+    sOperationText: string
+}
+
+function ButtonProgressBarSwitch({switchCondition, onClick, label, buttonBody, disabled, nProgress, sOperationText}: ButtonProgressBarSwitchProps) {
+    return switchCondition ?
+        (<ButtonItem
+            onClick={onClick}
+            label={label}
+            disabled={disabled}
+        >
+            {buttonBody}
+        </ButtonItem>
+        ) : (
+        <ProgressBarWithInfo
+            nProgress={nProgress}
+            label={label}
+            sOperationText={sOperationText}
+        />
+    )
+}
+
 interface ToggleFieldWithWarningProps {
     label: string,
-    setter: React.Dispatch<React.SetStateAction<boolean>>,
-    configSettingFunction: (setting: string, checked: boolean) => void,
-    configSetting: string
     warning: string,
     disabled: boolean,
     checked: boolean,
+    onChange: (checked: boolean) => void,
     isSteamCloudEnabled: boolean
 }
 
-function ToggleFieldWithWarning({label, setter, configSettingFunction, configSetting, warning, disabled, checked, isSteamCloudEnabled}: ToggleFieldWithWarningProps) {
+function ToggleFieldWithWarning({label, warning, disabled, checked, onChange, isSteamCloudEnabled}: ToggleFieldWithWarningProps) {
     return <ToggleField
         label={label}
         onChange={(checked) => {
-            setter(checked);
+            onChange(checked);
 
             if(checked && isSteamCloudEnabled)
             {
@@ -294,15 +300,11 @@ function ToggleFieldWithWarning({label, setter, configSettingFunction, configSet
                     strTitle="Warning"
                     strDescription={warning}
                     onCancel={() => {
-                        setter(false);
-
-                        configSettingFunction(configSetting, false);
+                        onChange(false);
                     }}
                     />
                 )
             }
-
-            configSettingFunction(configSetting, checked);
         }}
         disabled={disabled}
         layout="inline"
