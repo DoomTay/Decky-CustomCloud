@@ -23,6 +23,24 @@ class Plugin:
 
     async def get_status(self):
         return self.status
+    
+    def resolve_path(self, path):
+        path_variable_table = {
+            "<home>": os.path.join(self.get_prefix_path(),"drive_c","users","steamuser"),
+            "<winDocuments>": os.path.join(self.get_prefix_path(),"drive_c","users","steamuser","Documents"),
+            "<winAppData>": os.path.join(self.get_prefix_path(),"drive_c","users","steamuser","AppData","Roaming"),
+            "<winLocalAppData>": os.path.join(self.get_prefix_path(),"drive_c","users","steamuser","AppData","Local"),
+            "<base>": self.app_install_path or "UNINSTALLED_GAME_PATH",
+        }
+
+        for placeholder in path_variable_table:
+            if placeholder in path:
+                path = path.replace(placeholder,path_variable_table[placeholder])
+
+        return os.path.normpath(path)
+
+    def get_prefix_path(self):
+        return os.path.join(steam_dir,"steamapps","compatdata",str(self.current_app_id),"pfx")
 
     # Asyncio-compatible long-running code, executed in a task when the plugin is loaded
     async def _main(self):
@@ -34,9 +52,17 @@ class Plugin:
         self.status = "idle"
 
     async def set_default_paths(self):
-        self.app_settings.setSetting("paths", [
-           {"path": os.path.join(steam_dir,"steamapps","compatdata",str(self.current_app_id),"pfx"), "type": "configsave"}
-        ])
+        default_paths = [
+           {"path": self.get_prefix_path(), "type": "configsave"},
+           {"path": self.resolve_path("<winDocuments>/My Games/Game_" + str(self.current_app_id)), "type": "save"},
+           {"path": self.resolve_path(os.path.join("<winAppData>","My Games","Game_" + str(self.current_app_id),"*.ini")), "type": "config"},
+           {"path": self.resolve_path("<base>/saves/savedata.dat"), "type": "save"}
+        ]
+
+        if not self.app_is_installed:
+            default_paths = [path for path in default_paths if "UNINSTALLED_GAME_PATH" not in path["path"]]
+
+        self.app_settings.setSetting("paths", default_paths)
         self.app_settings.commit()
 
         return self.app_settings.getSetting("paths")
@@ -44,6 +70,8 @@ class Plugin:
     async def get_app_settings(self,appInfo):
         self.app_settings = SettingsManager(name=f"settings_{appInfo['unAppID']}", settings_directory=settings_dir)
         self.current_app_id = appInfo['unAppID']
+        self.app_is_installed = appInfo['iInstallFolder'] != -1
+        self.app_install_path = appInfo['strInstallFolder']
 
         cloud_enabled_for_game = appInfo['bCloudEnabledForApp']
 
