@@ -39,6 +39,8 @@ class Plugin:
         ])
         self.app_settings.commit()
 
+        return self.app_settings.getSetting("paths")
+
     async def get_app_settings(self,appInfo):
         self.app_settings = SettingsManager(name=f"settings_{appInfo['unAppID']}", settings_directory=settings_dir)
         self.current_app_id = appInfo['unAppID']
