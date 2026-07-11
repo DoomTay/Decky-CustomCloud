@@ -8,7 +8,8 @@ import asyncio
 import random
 from settings import SettingsManager
 
-settingsDir = os.environ["DECKY_PLUGIN_SETTINGS_DIR"]
+settings_dir = os.environ["DECKY_PLUGIN_SETTINGS_DIR"]
+steam_dir = os.path.join(os.environ["HOME"],".local","share","Steam")
 
 class Plugin:
     # A normal method. It can be called from the TypeScript side using @decky/api.
@@ -28,11 +29,19 @@ class Plugin:
         self.loop = asyncio.get_event_loop()
         decky.logger.info("Hello World!")
 
+        self.app_settings = None
         self.sync_progress = 0
         self.status = "idle"
 
+    async def set_default_paths(self):
+        self.app_settings.setSetting("paths", [
+           {"path": os.path.join(steam_dir,"steamapps","compatdata",str(self.current_app_id),"pfx"), "type": "configsave"}
+        ])
+        self.app_settings.commit()
+
     async def get_app_settings(self,appInfo):
-        self.app_settings = SettingsManager(name=f"settings_{appInfo['unAppID']}", settings_directory=settingsDir)
+        self.app_settings = SettingsManager(name=f"settings_{appInfo['unAppID']}", settings_directory=settings_dir)
+        self.current_app_id = appInfo['unAppID']
 
         cloud_enabled_for_game = appInfo['bCloudEnabledForApp']
 
@@ -42,12 +51,16 @@ class Plugin:
             self.app_settings.setSetting("sync_save_after_game", True)
             self.app_settings.setSetting("sync_save_before_game", not cloud_enabled_for_game)
             self.app_settings.commit()
+
+            await self.set_default_paths()
             
         self.app_settings.commit()
 
         return self.app_settings.settings
     
     async def set_app_setting(self, key, value):
+        if not self.app_settings: return
+
         self.app_settings.setSetting(key, value)
         self.app_settings.commit()
         

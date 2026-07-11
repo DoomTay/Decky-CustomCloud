@@ -16,16 +16,17 @@ import {
 import { AppDetails } from "@decky/ui/dist/globals/steam-client/App";
 import { ReactNode, useEffect, useState } from "react";
 import { FaCloudUploadAlt, FaCloudDownloadAlt, FaCog, FaSlash } from "react-icons/fa";
-import GamePaths from "./customcloud-gamepaths";
+import GamePaths, { GamePathSetting } from "./customcloud-gamepaths";
 
 interface ConfigContentProps {
     selectedGame: SingleDropdownOption | null,
     appIsInstalled: boolean,
     setSelectedGame: React.Dispatch<React.SetStateAction<SingleDropdownOption | null>>,
     setAppIsInstalled: React.Dispatch<React.SetStateAction<boolean>>
+    setGamePaths: React.Dispatch<React.SetStateAction<GamePathSetting[]>>,
 }
 
-function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsInstalled}: ConfigContentProps)
+function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsInstalled, setGamePaths}: ConfigContentProps)
 {
     const [rcloneStatus, setRcloneStatus] = useState("idle");
     const [rcloneProgress, setRcloneProgress] = useState<number | undefined>();
@@ -109,6 +110,8 @@ function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsI
             setCloudDownloadConfigEnabled(newSettings['sync_config_before_game']);
             setCloudUploadSaveEnabled(newSettings['sync_save_after_game']);
             setCloudDownloadSaveEnabled(newSettings['sync_save_before_game']);
+
+            setGamePaths(newSettings['paths']);
         })
     }
 
@@ -317,6 +320,14 @@ export default function CustomCloudConfig() {
 
     const [selectedGame, setSelectedGame] = useState<SingleDropdownOption|null>(null);
     const [appIsInstalled, setAppIsInstalled] = useState(true);
+    const [gamePaths, setGamePaths] = useState<GamePathSetting[]>([]);
+
+    useEffect(() =>
+    {
+        if(gamePaths.length == 0) return;
+
+        call<[key: string, value: any], any>("set_app_setting","paths", gamePaths);
+    }, [gamePaths, selectedGame])
 
     return <SidebarNavigation pages={
         [
@@ -327,7 +338,8 @@ export default function CustomCloudConfig() {
                 selectedGame={selectedGame}
                 appIsInstalled={appIsInstalled}
                 setSelectedGame={setSelectedGame} 
-                setAppIsInstalled={setAppIsInstalled} />
+                setAppIsInstalled={setAppIsInstalled}
+                setGamePaths={setGamePaths} />
             ),
             visible: true,
             route: '/customcloud-config/config',
@@ -337,7 +349,8 @@ export default function CustomCloudConfig() {
             title: "Game Paths",
             content: (
                 <GamePaths
-                currentAppId={selectedGame?.data}
+                paths={gamePaths}
+                setGamePaths={setGamePaths}
                 appIsInstalled={appIsInstalled} />
             ),
             visible: true,

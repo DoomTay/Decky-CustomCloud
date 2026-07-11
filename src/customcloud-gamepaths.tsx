@@ -6,12 +6,18 @@ import {
 } from "@decky/ui";
 import { Fragment } from "react/jsx-runtime";
 
-interface GamePathsProps {
-    currentAppId: number,
-    appIsInstalled: boolean
+export interface GamePathSetting {
+    path: string,
+    type: string
 }
 
-function GamePathField({currentAppId, appIsInstalled}: GamePathsProps)
+interface GamePathFieldProps {
+    value: GamePathSetting,
+    disabled: boolean
+    onChange: (newValue: GamePathSetting) => void,
+}
+
+function GamePathField({value, disabled, onChange}: GamePathFieldProps)
 {
     return (
     <Fragment>
@@ -23,14 +29,18 @@ function GamePathField({currentAppId, appIsInstalled}: GamePathsProps)
                 gap: "8px"
             }}
         >
-        <TextField value={currentAppId.toString()} disabled={!appIsInstalled} />
+        <TextField
+        value={value.path}
+        disabled={disabled}
+        onChange={(e) => onChange({...value, path: e.target.value})} />
         <Dropdown
         rgOptions= {[{data: "configsave", label: "Config + Save"},
             {data: "config", label: "Config"},
             {data: "save", label: "Save"}
         ]}
-        selectedOption="configsave"
-        disabled={!appIsInstalled}
+        onChange={(e) => onChange({...value, type: e.data})}
+        disabled={disabled}
+        selectedOption={value.type}
         >
         </Dropdown>
         </div>
@@ -38,14 +48,26 @@ function GamePathField({currentAppId, appIsInstalled}: GamePathsProps)
     )
 }
 
-export default function GamePaths({currentAppId, appIsInstalled}: GamePathsProps) {
+interface GamePathsProps {
+    paths: GamePathSetting[],
+    setGamePaths: React.Dispatch<React.SetStateAction<GamePathSetting[]>>,
+    appIsInstalled: boolean
+}
+
+export default function GamePaths({paths, setGamePaths, appIsInstalled}: GamePathsProps) {
 
     return (
     <DialogBody>
         <DialogControlsSection>
+        {paths.map((path) => (
         <GamePathField
-        currentAppId={currentAppId}
-        appIsInstalled={appIsInstalled} />
+        value={path}
+        disabled={!appIsInstalled}
+        onChange={(newPath) => {
+                setGamePaths([newPath])
+            }
+        } />
+        ))}
         </DialogControlsSection>
     </DialogBody>
     );
