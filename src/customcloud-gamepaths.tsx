@@ -104,6 +104,7 @@ export default function GamePaths({paths, setGamePaths, appIsInstalled}: GamePat
         } />
         <DialogButton
         onClick={() => deletePath(index)}
+        disabled={!appIsInstalled}
         style={{
             width: "45px",
             paddingLeft: "15px",
