@@ -6,11 +6,15 @@ import {
   staticClasses
 } from "@decky/ui";
 import {
+  callable,
   definePlugin,
-  routerHook
+  routerHook,
+  toaster
 } from "@decky/api"
 import { FaCloud } from "react-icons/fa";
 import CustomCloudConfig from "./customcloud-config";
+
+const downloadManifest = callable<[], {success: boolean, status_code: number, status_text: string, error: string}>("download_ludusavi_manifest");
 
 function Content() {
   return (
@@ -24,6 +28,59 @@ function Content() {
           }}
         >
           {"Config Settings"}
+        </ButtonItem>
+        <ButtonItem
+          layout="below"
+          onClick={async () => {
+            let downloadResult = await downloadManifest()
+
+            if(downloadResult.success == true)
+            {
+              if(downloadResult.status_code == 200)
+              {
+                //All good
+                toaster.toast({
+                    title: "Decky CustomCloud",
+                    body: "Manifest download complete"
+                });
+              }
+              else if(downloadResult.status_code == 304)
+              {
+                //Already up to date
+                toaster.toast({
+                    title: "Decky CustomCloud",
+                    body: "Manifest already up to date"
+                });
+              }
+              else
+              {
+                //We got a problem
+                toaster.toast({
+                    title: "Decky CustomCloud",
+                    body: "Manifest download error",
+                    subtext: downloadResult.status_code + " " + downloadResult.status_text,
+                    critical: true
+                });
+              }
+            }
+            else
+            {
+              const errorTable: Record<string, string> = 
+              {
+                "ConnectionError": "Connection Error",
+                "ConnectTimeout": "Timed out"
+              }
+
+              toaster.toast({
+                  title: "Decky CustomCloud",
+                  body: "Manifest download error",
+                  subtext: errorTable[downloadResult.error] ?? downloadResult.error,
+                  critical: true
+              });
+            }
+          }}
+        >
+          {"Update Ludusavi manifest"}
         </ButtonItem>
       </PanelSectionRow>
     </PanelSection>

@@ -4,7 +4,7 @@
   "flags": ["debug", "_root"],
   "api_version": 1,
   "publish": {
-    "tags": ["template", "root"],
+    "tags": ["cloud", "backup", "rclone", "sync", "root"],
     "description": "Neatly back up config and save data from Steam Deck to cloud storage",
     "image": "https://opengraph.githubassets.com/1/SteamDeckHomebrew/PluginLoader"
   }

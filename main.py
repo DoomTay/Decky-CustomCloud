@@ -6,20 +6,55 @@ import os
 import decky
 import asyncio
 import random
+import requests
+import re
+import yaml
 from settings import SettingsManager
 
+runtime_dir = os.environ["DECKY_PLUGIN_RUNTIME_DIR"]
 settings_dir = os.environ["DECKY_PLUGIN_SETTINGS_DIR"]
 steam_dir = os.path.join(os.environ["HOME"],".local","share","Steam")
 
 class Plugin:
-    # A normal method. It can be called from the TypeScript side using @decky/api.
-    async def add(self, left: int, right: int) -> int:
-        return left + right
+    async def download_ludusavi_manifest(self):
+        current_record = await self.get_ludusavi_download_record()
 
-    async def long_running(self):
-        await asyncio.sleep(15)
-        # Passing through a bunch of random data, just as an example
-        await decky.emit("timer_event", "Hello from the backend!", True, 2)
+        decky.logger.info("Downloading Ludusavi manifest")
+        try:
+            download = requests.get("https://raw.githubusercontent.com/mtkennerly/ludusavi-manifest/master/data/manifest.yaml",headers = {"If-None-Match": current_record["etag"]})
+
+            if download.status_code == 200:
+                with open(os.path.join(runtime_dir,"ludusavi_manifest.yaml"),"wb") as file:
+                    file.write(download.content)
+
+                decky.logger.info("Manifest downloaded")
+                download_record = SettingsManager(name="ludusavi_download", settings_directory=runtime_dir)
+
+                download_record.setSetting("etag", download.headers["etag"])
+                download_record.commit()
+            elif download.status_code == 304:
+                decky.logger.info("Manifest already up to date")
+            return {
+                "success": True,
+                "status_code": download.status_code,
+                "status_text": download.reason
+            }
+        except Exception as e:
+            decky.logger.error(e)
+
+            return {
+                "success": False,
+                "error": type(e).__name__
+            }
+        
+    async def get_ludusavi_download_record(self):
+        download_record = SettingsManager(name="ludusavi_download", settings_directory=runtime_dir)
+
+        if not download_record.settings:
+            download_record.setSetting("etag", "")
+            download_record.commit()
+
+        return download_record.settings
 
     async def get_status(self):
         return self.status
@@ -33,7 +68,11 @@ class Plugin:
             "<winDocuments>": os.path.join(proton_prefix,"Documents"),
             "<winAppData>": os.path.join(proton_prefix,"AppData","Roaming"),
             "<winLocalAppData>": os.path.join(proton_prefix,"AppData","Local"),
-            "<base>": self.app_install_path or "UNINSTALLED_GAME_PATH"
+            "<xdgConfig>": os.path.join(os.environ["HOME"],".config"),
+            "<xdgData>": os.path.join(os.environ["HOME"],".local", "share"),
+            "<storeUserId>": str(self.steamid3),
+            "<base>": self.app_install_path or "UNINSTALLED_GAME_PATH",
+            "<root>": steam_dir
         }
 
         for placeholder in path_variable_table:
@@ -55,15 +94,53 @@ class Plugin:
         self.status = "idle"
 
     async def set_default_paths(self):
-        default_paths = [
-           {"path": self.get_prefix_path(), "type": "configsave"},
-           {"path": self.resolve_path("<winDocuments>/My Games/Game_" + str(self.current_app_id)), "type": "save"},
-           {"path": self.resolve_path(os.path.join("<winAppData>","My Games","Game_" + str(self.current_app_id),"*.ini")), "type": "config"},
-           {"path": self.resolve_path("<base>/saves/savedata.dat"), "type": "save"}
-        ]
+        default_paths = []
 
-        if not self.app_is_installed:
-            default_paths = [path for path in default_paths if "UNINSTALLED_GAME_PATH" not in path["path"]]
+        manifest_path = os.path.join(runtime_dir,"ludusavi_manifest.yaml")
+
+        if not os.path.exists(manifest_path):
+            await self.download_ludusavi_manifest()
+
+        with open (manifest_path, "r", encoding="utf-8") as file:
+            decky.logger.info("Loading manifest")
+            
+            file_contents = file.read()
+	
+            decky.logger.info("Parsing manifest")
+            
+            pattern = r"^(\S.+:\n(?:^\s{1,10}.+\n?)*)"
+            matches = re.findall(pattern, file_contents, flags=re.MULTILINE)
+            
+            decky.logger.info(f"Manifest parsed. Finding info for app ID {self.current_app_id}")
+
+            possible_entry = next((game for game in matches if bool(re.search(rf"steam:\n\s+id:\s?{self.current_app_id}$", game))), None)
+                
+            found_entry = next(iter(yaml.safe_load(possible_entry).values()))
+            
+        paths = found_entry["files"]
+        
+        decky.logger.info(f"App found. Collating paths.")
+        for possible_path,path_data in paths.items():
+            resolved_path = self.resolve_path(possible_path)
+
+            if not self.app_is_installed and "UNINSTALLED_GAME_PATH" in resolved_path:
+                continue
+
+            if any((when.get("os") == "linux" or when.get("os") == "windows" or when.get("store") == "steam") for when in path_data["when"]):
+                stores = [when.get("store") for when in path_data["when"] if "store" in when]
+                
+                if stores and "steam" not in stores:
+                    continue
+
+                path_type = "configsave"
+
+                if path_data.get("tags"):
+                    if "config" in path_data["tags"] and "save" not in path_data["tags"]: path_type = "config"
+                    elif "save" in path_data["tags"] and "config" not in path_data["tags"]: path_type = "save"
+
+                default_paths.append({"path": resolved_path, "type": path_type})
+
+        decky.logger.info(f"Paths found. Added to defaults.")
 
         self.app_settings.setSetting("paths", default_paths)
         self.app_settings.commit()
@@ -75,6 +152,8 @@ class Plugin:
         self.current_app_id = appInfo['unAppID']
         self.app_is_installed = appInfo['iInstallFolder'] != -1
         self.app_install_path = appInfo['strInstallFolder']
+        self.steamid64 = int(appInfo['strOwnerSteamID'])
+        self.steamid3 = self.steamid64 - 76561197960265728
 
         cloud_enabled_for_game = appInfo['bCloudEnabledForApp']
 
@@ -96,6 +175,9 @@ class Plugin:
 
         self.app_settings.setSetting(key, value)
         self.app_settings.commit()
+    
+    async def get_current_app_id(self):
+        return self.current_app_id
         
     # Function called first during the unload process, utilize this to handle your plugin being stopped, but not
     # completely removed

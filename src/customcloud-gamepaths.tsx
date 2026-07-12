@@ -8,6 +8,7 @@ import {
   showModal,
   ConfirmModal,
   ButtonItem,
+  SteamSpinner,
 } from "@decky/ui";
 import { FaPlus, FaTrash } from "react-icons/fa";
 import { Fragment } from "react/jsx-runtime";
@@ -57,11 +58,12 @@ function GamePathField({value, disabled, onChange}: GamePathFieldProps)
 interface GamePathsProps {
     paths: GamePathSetting[],
     setGamePaths: React.Dispatch<React.SetStateAction<GamePathSetting[]>>,
+    loadingPaths: boolean,
+    setLoadingPaths: React.Dispatch<React.SetStateAction<boolean>>,
     appIsInstalled: boolean
 }
 
-export default function GamePaths({paths, setGamePaths, appIsInstalled}: GamePathsProps) {
-
+export default function GamePaths({paths, setGamePaths, loadingPaths, setLoadingPaths, appIsInstalled}: GamePathsProps) {
     function addPath()
     {
         setGamePaths([...paths, {path: "", type: "configsave"}]);
@@ -79,6 +81,8 @@ export default function GamePaths({paths, setGamePaths, appIsInstalled}: GamePat
         )
 
     }
+
+    if(loadingPaths) return <SteamSpinner />
 
     return (
     <DialogBody>
@@ -149,6 +153,7 @@ export default function GamePaths({paths, setGamePaths, appIsInstalled}: GamePat
         </div>
         </DialogControlsSection>
         <ButtonItem
+        label="Reset paths to defaults"
         onClick={() => {
             showModal(
             <ConfirmModal
@@ -156,9 +161,11 @@ export default function GamePaths({paths, setGamePaths, appIsInstalled}: GamePat
                 strDescription="Reset all paths to defaults?"
                 bDestructiveWarning={true}
                 onOK={async () => {
-                    let defaultPaths = await call<[], GamePathSetting[]>("set_default_paths");
-
-                    setGamePaths(defaultPaths);
+                    setLoadingPaths(true);
+                    call<[], GamePathSetting[]>("set_default_paths").then((defaultPaths) => {
+                        setGamePaths(defaultPaths);
+                        setLoadingPaths(false);
+                    });
                 }}
                 />
             )

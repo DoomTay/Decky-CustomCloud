@@ -22,11 +22,12 @@ interface ConfigContentProps {
     selectedGame: SingleDropdownOption | null,
     appIsInstalled: boolean,
     setSelectedGame: React.Dispatch<React.SetStateAction<SingleDropdownOption | null>>,
-    setAppIsInstalled: React.Dispatch<React.SetStateAction<boolean>>
+    setAppIsInstalled: React.Dispatch<React.SetStateAction<boolean>>,
     setGamePaths: React.Dispatch<React.SetStateAction<GamePathSetting[]>>,
+    setLoadingPaths: React.Dispatch<React.SetStateAction<boolean>>
 }
 
-function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsInstalled, setGamePaths}: ConfigContentProps)
+function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsInstalled, setGamePaths, setLoadingPaths}: ConfigContentProps)
 {
     const [rcloneStatus, setRcloneStatus] = useState("idle");
     const [rcloneProgress, setRcloneProgress] = useState<number | undefined>();
@@ -46,7 +47,9 @@ function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsI
             {data: 338930, label: "Transformers: Devastation"},
             {data: 480490, label: "Prey"},
             {data: 379720, label: "Doom (2016)"},
-            {data: 1086940, label: "Baldur's Gate 3"}
+            {data: 1086940, label: "Baldur's Gate 3"},
+            {data: 3017860, label: "Doom: The Dark Ages"},
+            {data: 736260, label: "Baba Is You"}
         ]
         setInstalledGames(games);
 
@@ -96,7 +99,6 @@ function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsI
     const updateGameInfo = async(gameSelection: SingleDropdownOption) =>
     {
         setSelectedGame(gameSelection);
-        setGameInfoText(gameSelection);
 
         const { unregister } = SteamClient.Apps.RegisterForAppDetails(gameSelection.data, async (details) => {
             unregister();
@@ -104,6 +106,7 @@ function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsI
             setSteamCloudEnabled(details.bCloudEnabledForApp)
             setAppIsInstalled(details.iInstallFolder != -1)
 
+            setLoadingPaths(true);
             const newSettings = await call<[appInfo: AppDetails], any>("get_app_settings",details);
 
             setCloudUploadConfigEnabled(newSettings['sync_config_after_game']);
@@ -112,6 +115,10 @@ function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsI
             setCloudDownloadSaveEnabled(newSettings['sync_save_before_game']);
 
             setGamePaths(newSettings['paths']);
+
+            setGameInfoText(details);
+
+            setLoadingPaths(false);
         })
     }
 
@@ -321,6 +328,7 @@ export default function CustomCloudConfig() {
     const [selectedGame, setSelectedGame] = useState<SingleDropdownOption|null>(null);
     const [appIsInstalled, setAppIsInstalled] = useState(true);
     const [gamePaths, setGamePaths] = useState<GamePathSetting[]>([]);
+    const [loadingPaths, setLoadingPaths] = useState(false);
 
     useEffect(() =>
     {
@@ -339,7 +347,8 @@ export default function CustomCloudConfig() {
                 appIsInstalled={appIsInstalled}
                 setSelectedGame={setSelectedGame} 
                 setAppIsInstalled={setAppIsInstalled}
-                setGamePaths={setGamePaths} />
+                setGamePaths={setGamePaths}
+                setLoadingPaths={setLoadingPaths} />
             ),
             visible: true,
             route: '/customcloud-config/config',
@@ -351,6 +360,8 @@ export default function CustomCloudConfig() {
                 <GamePaths
                 paths={gamePaths}
                 setGamePaths={setGamePaths}
+                loadingPaths={loadingPaths}
+                setLoadingPaths={setLoadingPaths}
                 appIsInstalled={appIsInstalled} />
             ),
             visible: true,
