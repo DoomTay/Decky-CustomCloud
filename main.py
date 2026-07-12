@@ -25,12 +25,15 @@ class Plugin:
         return self.status
     
     def resolve_path(self, path):
+        proton_prefix = self.get_prefix_path()
+
         path_variable_table = {
-            "<home>": os.path.join(self.get_prefix_path(),"drive_c","users","steamuser"),
-            "<winDocuments>": os.path.join(self.get_prefix_path(),"drive_c","users","steamuser","Documents"),
-            "<winAppData>": os.path.join(self.get_prefix_path(),"drive_c","users","steamuser","AppData","Roaming"),
-            "<winLocalAppData>": os.path.join(self.get_prefix_path(),"drive_c","users","steamuser","AppData","Local"),
-            "<base>": self.app_install_path or "UNINSTALLED_GAME_PATH",
+            "<home>": os.path.join(proton_prefix),
+            "C:/Users/<osUserName>": os.path.join(proton_prefix),
+            "<winDocuments>": os.path.join(proton_prefix,"Documents"),
+            "<winAppData>": os.path.join(proton_prefix,"AppData","Roaming"),
+            "<winLocalAppData>": os.path.join(proton_prefix,"AppData","Local"),
+            "<base>": self.app_install_path or "UNINSTALLED_GAME_PATH"
         }
 
         for placeholder in path_variable_table:
@@ -40,7 +43,7 @@ class Plugin:
         return os.path.normpath(path)
 
     def get_prefix_path(self):
-        return os.path.join(steam_dir,"steamapps","compatdata",str(self.current_app_id),"pfx")
+        return os.path.join(steam_dir,"steamapps","compatdata",str(self.current_app_id),"pfx","drive_c","users","steamuser")
 
     # Asyncio-compatible long-running code, executed in a task when the plugin is loaded
     async def _main(self):
