@@ -1,6 +1,6 @@
 {
   "name": "decky-customcloud",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "description": "Neatly back up config and save data from Steam Deck to cloud storage",
   "type": "module",
   "scripts": {
