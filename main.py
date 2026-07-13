@@ -8,6 +8,8 @@ import asyncio
 import random
 import requests
 import re
+import zipfile
+import tempfile
 import yaml
 from settings import SettingsManager
 
@@ -16,6 +18,43 @@ settings_dir = os.environ["DECKY_PLUGIN_SETTINGS_DIR"]
 steam_dir = os.path.join(os.environ["HOME"],".local","share","Steam")
 
 class Plugin:
+    async def update_rclone(self):
+        decky.logger.info("Downloading Rclone")
+
+        try:
+            download = requests.get("https://downloads.rclone.org/rclone-current-linux-amd64.zip")
+
+            if download.status_code == 200:
+                with tempfile.NamedTemporaryFile() as zip_download:
+                    zip_download.write(download.content)
+
+                    with zipfile.ZipFile(zip_download.name, 'r') as zip_file:
+                        info = zip_file.infolist()
+                        
+                        rclone_binary_pointer = next((file for file in info if file.filename.endswith("rclone")), None)
+                        
+                        print(rclone_binary_pointer.filename)
+                        
+                        with zip_file.open(rclone_binary_pointer.filename) as rclone_binary:
+                            rclone_binary_data = rclone_binary.read()
+                            
+                            with open(os.path.join(runtime_dir,"rclone"),"wb") as file:
+                                file.write(rclone_binary_data)
+                
+                decky.logger.info("Rclone downloaded")
+            return {
+                "success": True,
+                "status_code": download.status_code,
+                "status_text": download.reason
+            }
+        except Exception as e:
+            decky.logger.error(e)
+
+            return {
+                "success": False,
+                "error": type(e).__name__
+            }
+    
     async def download_ludusavi_manifest(self):
         current_record = await self.get_ludusavi_download_record()
 
@@ -34,6 +73,7 @@ class Plugin:
                 download_record.commit()
             elif download.status_code == 304:
                 decky.logger.info("Manifest already up to date")
+
             return {
                 "success": True,
                 "status_code": download.status_code,

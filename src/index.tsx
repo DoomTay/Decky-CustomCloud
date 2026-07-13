@@ -13,10 +13,14 @@ import {
 } from "@decky/api"
 import { FaCloud } from "react-icons/fa";
 import CustomCloudConfig from "./customcloud-config";
+import { useState } from "react";
 
 const downloadManifest = callable<[], {success: boolean, status_code: number, status_text: string, error: string}>("download_ludusavi_manifest");
+const updateRclone = callable<[], {success: boolean, status_code: number, status_text: string, error: string}>("update_rclone");
 
 function Content() {
+  const [downloadingRclone, setDownloadingRclone] = useState<boolean>(false);
+
   return (
     <PanelSection>
       <PanelSectionRow>
@@ -81,6 +85,54 @@ function Content() {
           }}
         >
           {"Update Ludusavi manifest"}
+        </ButtonItem>
+        <ButtonItem
+          layout="below"
+          disabled={downloadingRclone}
+          onClick={async () => {
+            setDownloadingRclone(true);
+            let downloadResult = await updateRclone()
+            setDownloadingRclone(false);
+
+            if(downloadResult.success == true)
+            {
+              if(downloadResult.status_code == 200)
+              {
+                //All good
+                toaster.toast({
+                    title: "Decky CustomCloud",
+                    body: "Rclone updated"
+                });
+              }
+              else
+              {
+                //We got a problem
+                toaster.toast({
+                    title: "Decky CustomCloud",
+                    body: "Rclone download error",
+                    subtext: downloadResult.status_code + " " + downloadResult.status_text,
+                    critical: true
+                });
+              }
+            }
+            else
+            {
+              const errorTable: Record<string, string> = 
+              {
+                "ConnectionError": "Connection Error",
+                "ConnectTimeout": "Timed out"
+              }
+
+              toaster.toast({
+                  title: "Decky CustomCloud",
+                  body: "Rclone download error",
+                  subtext: errorTable[downloadResult.error] ?? downloadResult.error,
+                  critical: true
+              });
+            }
+          }}
+        >
+          {"Update Rclone"}
         </ButtonItem>
       </PanelSectionRow>
     </PanelSection>
