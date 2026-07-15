@@ -49,7 +49,8 @@ function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsI
             {data: 379720, label: "Doom (2016)"},
             {data: 1086940, label: "Baldur's Gate 3"},
             {data: 3017860, label: "Doom: The Dark Ages"},
-            {data: 736260, label: "Baba Is You"}
+            {data: 736260, label: "Baba Is You"},
+            {data: 235460, label: "Metal Gear Rising"}
         ]
         setInstalledGames(games);
 
@@ -163,7 +164,7 @@ function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsI
         <ButtonProgressBarSwitch
             switchCondition={rcloneStatus != "uploading_config"}
             onClick={() => {
-                call<[]>("rclone_push_config");
+                call<[push_configsaves: boolean]>("rclone_push_config",true);
                 updateRcloneStatus();
             }}
             label="Push to cloud"

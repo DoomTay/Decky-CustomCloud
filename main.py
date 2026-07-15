@@ -16,6 +16,8 @@ from settings import SettingsManager
 runtime_dir = os.environ["DECKY_PLUGIN_RUNTIME_DIR"]
 settings_dir = os.environ["DECKY_PLUGIN_SETTINGS_DIR"]
 steam_dir = os.path.join(os.environ["HOME"],".local","share","Steam")
+rclone_path = os.path.join(runtime_dir,"rclone")
+rclone_config_path = os.path.join(settings_dir,"rclone.conf")
 
 class Plugin:
     async def update_rclone(self):
@@ -32,14 +34,10 @@ class Plugin:
                         info = zip_file.infolist()
                         
                         rclone_binary_pointer = next((file for file in info if file.filename.endswith("rclone")), None)
-                        
-                        print(rclone_binary_pointer.filename)
-                        
+
                         with zip_file.open(rclone_binary_pointer.filename) as rclone_binary:
-                            rclone_binary_data = rclone_binary.read()
-                            
-                            with open(os.path.join(runtime_dir,"rclone"),"wb") as file:
-                                file.write(rclone_binary_data)
+                            with open(rclone_path,"wb") as file:
+                                file.write(rclone_binary.read())
                 
                 decky.logger.info("Rclone downloaded")
             return {
@@ -129,6 +127,12 @@ class Plugin:
         self.loop = asyncio.get_event_loop()
         decky.logger.info("Hello World!")
 
+        self.global_settings = SettingsManager(name="settings", settings_directory=settings_dir)
+
+        if not self.global_settings.settings:
+            self.global_settings.setSetting("cloud_directory", "CustomCloud-Backup")
+            self.global_settings.commit()
+
         self.app_settings = None
         self.sync_progress = 0
         self.status = "idle"
@@ -206,8 +210,6 @@ class Plugin:
 
             await self.set_default_paths()
             
-        self.app_settings.commit()
-
         return self.app_settings.settings
     
     async def set_app_setting(self, key, value):
@@ -218,7 +220,7 @@ class Plugin:
     
     async def get_current_app_id(self):
         return self.current_app_id
-        
+    
     # Function called first during the unload process, utilize this to handle your plugin being stopped, but not
     # completely removed
     async def _unload(self):
@@ -234,10 +236,56 @@ class Plugin:
     async def start_timer(self):
         self.loop.create_task(self.long_running())
 
-    async def rclone_push_config(self):
+    async def rclone_push_config(self,push_configsaves):
         self.sync_progress = 0
         self.status = "uploading_config"
 
+        base_backup_path = self.global_settings.getSetting("cloud_directory", "CustomCloud-Backup")
+        game_backup_path = os.path.join(base_backup_path,str(self.current_app_id))
+
+        app_paths = self.app_settings.getSetting("paths","[]")
+
+        config_paths = [path for path in app_paths if path["type"] == "config"]
+
+        def get_save_excludes(original_path):
+            save_paths = [path["path"] for path in app_paths if path["type"] == "save"]
+            relative_save_paths = []
+
+            for save_path in save_paths:
+                if original_path not in save_path: continue
+
+                relative_save_path = os.path.relpath(save_path,original_path)
+
+                if os.path.isdir(save_path): relative_save_path += "/**"
+                # if relative_save_path == "../**": continue
+
+                relative_save_paths.append(relative_save_path.replace("\\","/"))
+
+            return relative_save_paths
+
+        decky.logger.info(f"Preparing to upload config data to {game_backup_path}")
+
+        for i, config_path in enumerate(config_paths):
+            full_target_path = os.path.join(game_backup_path,f"config-{i}")
+
+            await asyncio.create_subprocess_exec(rclone_path, "mkdir", f"customcloud-remote:{full_target_path}", "--dry-run", "--config", rclone_config_path)
+
+            if "*" in config_path["path"]:
+                path_and_filter = config_path["path"].split('*', 1)
+
+                await asyncio.create_subprocess_exec(rclone_path, "sync", path_and_filter[0], f"customcloud-remote:{full_target_path}", "--include", f"*{path_and_filter[1]}", "--dry-run", "--config", rclone_config_path)
+            else:
+                excludes = get_save_excludes(config_path["path"])
+
+                args = [rclone_path, "copy", config_path["path"], f"customcloud-remote:{full_target_path}"]
+
+                for exclude in excludes:
+                    args.extend(["--exclude", exclude])
+
+                args.extend(["--dry-run", "--config", rclone_config_path])
+
+                await asyncio.create_subprocess_exec(*args)
+                
         self.loop.create_task(self.update_progress())
 
     async def rclone_push_save(self):
@@ -268,6 +316,8 @@ class Plugin:
             await asyncio.sleep(1)
         
         await decky.emit("progress_event", 100, "Task complete")
+
+        decky.logger.info("Cloud sync complete")
         self.status = "idle"
 
     # Migrations that should be performed before entering `_main()`.
