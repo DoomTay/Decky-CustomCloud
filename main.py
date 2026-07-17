@@ -98,10 +98,12 @@ class Plugin:
         return self.status
     
     def resolve_path(self, path):
+    def resolve_path(self, path, is_native_linux):
         proton_prefix = self.get_prefix_path()
 
         path_variable_table = {
             "<home>": os.path.join(proton_prefix),
+            "<home>": os.environ["HOME"] if is_native_linux else os.path.join(proton_prefix),
             "C:/Users/<osUserName>": os.path.join(proton_prefix),
             "<winDocuments>": os.path.join(proton_prefix,"Documents"),
             "<winAppData>": os.path.join(proton_prefix,"AppData","Roaming"),
@@ -158,19 +160,26 @@ class Plugin:
             decky.logger.info(f"Manifest parsed. Finding info for app ID {self.current_app_id}")
 
             possible_entry = next((game for game in matches if bool(re.search(rf"steam:\n\s+id:\s?{self.current_app_id}$", game))), None)
+
+            parsed_entry = yaml.safe_load(possible_entry)
+
+            self.app_settings.setSetting("game_folder", re.sub(r'[<>:\"\/\|\?*]', '', next(iter(parsed_entry.keys()))))
                 
-            found_entry = next(iter(yaml.safe_load(possible_entry).values()))
+            found_entry = next(iter(parsed_entry.values()))
             
         paths = found_entry["files"]
         
         decky.logger.info(f"App found. Collating paths.")
+
+        is_native_linux = any(any((when.get("os") == "linux") for when in path_data["when"]) for _,path_data in paths.items())
+
         for possible_path,path_data in paths.items():
-            resolved_path = self.resolve_path(possible_path)
+            resolved_path = self.resolve_path(possible_path, is_native_linux)
 
             if not self.app_is_installed and "UNINSTALLED_GAME_PATH" in resolved_path:
                 continue
 
-            if any((when.get("os") == "linux" or when.get("os") == "windows" or when.get("store") == "steam") for when in path_data["when"]):
+            if any(((when.get("os") == "linux" and is_native_linux) or (when.get("os") == "windows" and not is_native_linux) or when.get("store") == "steam") for when in path_data["when"]):
                 stores = [when.get("store") for when in path_data["when"] if "store" in when]
                 
                 if stores and "steam" not in stores:
