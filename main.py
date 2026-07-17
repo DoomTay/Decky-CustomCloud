@@ -97,12 +97,10 @@ class Plugin:
     async def get_status(self):
         return self.status
     
-    def resolve_path(self, path):
     def resolve_path(self, path, is_native_linux):
         proton_prefix = self.get_prefix_path()
 
         path_variable_table = {
-            "<home>": os.path.join(proton_prefix),
             "<home>": os.environ["HOME"] if is_native_linux else os.path.join(proton_prefix),
             "C:/Users/<osUserName>": os.path.join(proton_prefix),
             "<winDocuments>": os.path.join(proton_prefix,"Documents"),
