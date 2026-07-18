@@ -172,12 +172,12 @@ class Plugin:
         is_native_linux = any(any((when.get("os") == "linux") for when in path_data["when"]) for _,path_data in paths.items())
 
         for possible_path,path_data in paths.items():
-            resolved_path = self.resolve_path(possible_path, is_native_linux)
+            resolved_path = self.resolve_path(possible_path, self.is_native_linux)
 
             if not self.app_is_installed and "UNINSTALLED_GAME_PATH" in resolved_path:
                 continue
 
-            if any(((when.get("os") == "linux" and is_native_linux) or (when.get("os") == "windows" and not is_native_linux) or when.get("store") == "steam") for when in path_data["when"]):
+            if any(((when.get("os") == "linux" and self.is_native_linux) or (when.get("os") == "windows" and not self.is_native_linux) or when.get("store") == "steam") for when in path_data["when"]):
                 stores = [when.get("store") for when in path_data["when"] if "store" in when]
                 
                 if stores and "steam" not in stores:
@@ -204,6 +204,7 @@ class Plugin:
         self.app_is_installed = appInfo['iInstallFolder'] != -1
         self.app_install_path = appInfo['strInstallFolder']
         self.steamid64 = int(appInfo['strOwnerSteamID'])
+        self.is_native_linux = "steamlinuxruntime" in appInfo['strCompatToolName']
         self.steamid3 = self.steamid64 - 76561197960265728
 
         cloud_enabled_for_game = appInfo['bCloudEnabledForApp']
