@@ -138,7 +138,12 @@ export default function GamePaths({paths, setGamePaths, loadingPaths, setLoading
                 gap: "8px"
             }}
         >
-        <div>&nbsp;</div>
+        <div>
+        <TextField
+        label="Game Folder Name"
+        >
+        </TextField>
+        </div>
         <DialogButton
         onClick={addPath}
         disabled={!appIsInstalled}

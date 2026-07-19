@@ -31,6 +31,7 @@ function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsI
 {
     const [rcloneStatus, setRcloneStatus] = useState("idle");
     const [rcloneProgress, setRcloneProgress] = useState<number | undefined>();
+    const [rcloneEta, setRcloneEta] = useState<number>(0);
     const [gameInfoText, setGameInfoText] = useState<any | undefined>();
     const [cloudUploadConfigEnabled, setCloudUploadConfigEnabled] = useState(true);
     const [cloudDownloadConfigEnabled, setCloudDownloadConfigEnabled] = useState(true);
@@ -50,7 +51,9 @@ function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsI
             {data: 1086940, label: "Baldur's Gate 3"},
             {data: 3017860, label: "Doom: The Dark Ages"},
             {data: 736260, label: "Baba Is You"},
-            {data: 235460, label: "Metal Gear Rising"}
+            {data: 235460, label: "Metal Gear Rising"},
+            {data: 238210, label: "System Shock 2"},
+            {data: 413410, label: "Danganronpa 1"}
         ]
         setInstalledGames(games);
 
@@ -64,12 +67,18 @@ function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsI
     }, [])
 
     useEffect(() => {
-        const updateRcloneProgress = (progress: number) =>
+        interface ProgressData {
+            progress: number,
+            eta: number
+        }
+
+        const updateRcloneProgress = (progress: ProgressData) =>
         {
-            setRcloneProgress(progress)
+            setRcloneProgress(progress.progress)
+            setRcloneEta(progress.eta)
             updateRcloneStatus();
 
-            if(progress == 100)
+            if(progress.progress == 100)
             {
                 console.log("Status: ", rcloneStatus)
                 toaster.toast({
@@ -164,6 +173,8 @@ function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsI
         <ButtonProgressBarSwitch
             switchCondition={rcloneStatus != "uploading_config"}
             onClick={() => {
+                setRcloneProgress(undefined)
+                setRcloneEta(0)
                 call<[push_configsaves: boolean]>("rclone_push_config",true);
                 updateRcloneStatus();
             }}
@@ -171,7 +182,8 @@ function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsI
             buttonBody={<FaCloudUploadAlt />}
             disabled={!appIsInstalled || rcloneStatus != "idle"}
             nProgress={rcloneProgress}
-            sOperationText={"Uploading " + rcloneProgress + "%"}
+            sOperationText={rcloneProgress != undefined ? "Uploading " + Math.floor(rcloneProgress) + "%" : "Uploading"}
+            rtEstimatedCompletionTime={String(rcloneEta) + " " + (Number(new Date()) / 1000) + rcloneEta}
         />
         </DialogControlsSection>
         <DialogControlsSection>
@@ -190,6 +202,8 @@ function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsI
         <ButtonProgressBarSwitch
             switchCondition={rcloneStatus != "downloading_config"}
             onClick={() => {
+                setRcloneProgress(undefined)
+                setRcloneEta(0)
                 call<[]>("rclone_pull_config");
                 updateRcloneStatus();
             }}
@@ -198,6 +212,7 @@ function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsI
             disabled={!appIsInstalled || rcloneStatus != "idle"}
             nProgress={rcloneProgress}
             sOperationText={"Downloading " + rcloneProgress + "%"}
+            rtEstimatedCompletionTime={(Number(new Date()) / 1000) + rcloneEta}
         />
         </DialogControlsSection>
         <DialogControlsSection>
@@ -216,6 +231,8 @@ function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsI
         <ButtonProgressBarSwitch
             switchCondition={rcloneStatus != "uploading_save"}
             onClick={() => {
+                setRcloneProgress(undefined)
+                setRcloneEta(0)
                 call<[]>("rclone_push_save");
                 updateRcloneStatus();
             }}
@@ -223,7 +240,8 @@ function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsI
             buttonBody={<FaCloudUploadAlt />}
             disabled={!appIsInstalled || rcloneStatus != "idle"}
             nProgress={rcloneProgress}
-            sOperationText={"Uploading " + rcloneProgress + "%"}
+            sOperationText={rcloneProgress != undefined ? "Uploading " + Math.floor(rcloneProgress) + "%" : "Uploading"}
+            rtEstimatedCompletionTime={(Number(new Date()) / 1000) + rcloneEta}
         />
         </DialogControlsSection>
         <DialogControlsSection>
@@ -242,6 +260,8 @@ function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsI
         <ButtonProgressBarSwitch
             switchCondition={rcloneStatus != "downloading_save"}
             onClick={() => {
+                setRcloneProgress(undefined)
+                setRcloneEta(0)
                 call<[]>("rclone_pull_save");
                 updateRcloneStatus();
             }}
@@ -250,6 +270,7 @@ function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsI
             disabled={!appIsInstalled || rcloneStatus != "idle"}
             nProgress={rcloneProgress}
             sOperationText={"Downloading " + rcloneProgress + "%"}
+            rtEstimatedCompletionTime={(Number(new Date()) / 1000) + rcloneEta}
         />
         </DialogControlsSection>
         <PanelSectionRow>
@@ -268,10 +289,11 @@ interface ButtonProgressBarSwitchProps {
     buttonBody: ReactNode
     disabled: boolean,
     nProgress: number | undefined,
-    sOperationText: string
+    sOperationText: string,
+    rtEstimatedCompletionTime?: ReactNode
 }
 
-function ButtonProgressBarSwitch({switchCondition, onClick, label, buttonBody, disabled, nProgress, sOperationText}: ButtonProgressBarSwitchProps) {
+function ButtonProgressBarSwitch({switchCondition, onClick, label, buttonBody, disabled, nProgress, sOperationText,rtEstimatedCompletionTime}: ButtonProgressBarSwitchProps) {
     return switchCondition ?
         (<ButtonItem
             onClick={onClick}
@@ -284,7 +306,9 @@ function ButtonProgressBarSwitch({switchCondition, onClick, label, buttonBody, d
         <ProgressBarWithInfo
             nProgress={nProgress}
             label={label}
+            indeterminate={nProgress != undefined || nProgress != null}
             sOperationText={sOperationText}
+            rtEstimatedCompletionTime={rtEstimatedCompletionTime}
         />
     )
 }
