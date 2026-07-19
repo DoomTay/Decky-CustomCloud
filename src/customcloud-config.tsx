@@ -67,23 +67,19 @@ function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsI
     }, [])
 
     useEffect(() => {
-        interface ProgressData {
-            progress: number,
-            eta: number
-        }
 
-        const updateRcloneProgress = (progress: ProgressData) =>
+        const updateRcloneProgress = (progress: number, eta: number, message: string) =>
         {
-            setRcloneProgress(progress.progress)
-            setRcloneEta(progress.eta)
+            setRcloneProgress(progress)
+            setRcloneEta(eta)
             updateRcloneStatus();
 
-            if(progress.progress == 100)
+            if(progress == 100)
             {
                 console.log("Status: ", rcloneStatus)
                 toaster.toast({
                     title: "Decky CustomCloud",
-                    body: "Syncing complete"
+                    body: message
                 });
             }
         }

@@ -12,6 +12,7 @@ import re
 import zipfile
 import tempfile
 import yaml
+from datetime import datetime
 from settings import SettingsManager
 
 runtime_dir = os.environ["DECKY_PLUGIN_RUNTIME_DIR"]
@@ -20,6 +21,7 @@ log_dir = os.environ["DECKY_PLUGIN_LOG_DIR"]
 steam_dir = os.path.join(os.environ["HOME"],".local","share","Steam")
 rclone_path = os.path.join(runtime_dir,"rclone")
 rclone_config_path = os.path.join(settings_dir,"rclone.conf")
+timestamp = datetime.now().strftime('%Y-%m-%d %H.%M.%S')
 
 class Plugin:
     async def update_rclone(self):
@@ -263,11 +265,15 @@ class Plugin:
                         "IncludeRule": [f"/{path_and_filter[1]}*"],
                     })
 
-                    await asyncio.create_subprocess_exec(*rclone_shared_args, "rc", "sync/sync", f"srcFs={path_and_filter[0]}", f"dstFs=customcloud-remote:{full_target_path}", f"_filter={filter_json}")
+                    await asyncio.create_subprocess_exec(*rclone_shared_args, "rc", "sync/sync", f"srcFs={path_and_filter[0]}", f"dstFs=customcloud-remote:{full_target_path}", f"_filter={filter_json}", f"_group=customcloud_upload_{self.current_app_id}")
                 else:
                     path_and_filter = path["path"].split('*', 1)
 
-                    await asyncio.create_subprocess_exec(*rclone_shared_args, "copy", path_and_filter[0], f"customcloud-remote:{full_target_path}", "--include", f"*{path_and_filter[1]}", "--rc-addr=localhost:5572")
+                    filter_json=json.dumps({
+                        "IncludeRule": [f"*{path_and_filter[1]}*"],
+                    })
+                    
+                    await asyncio.create_subprocess_exec(*rclone_shared_args, "rc", "sync/sync", f"srcFs={path_and_filter[0]}", f"dstFs=customcloud-remote:{full_target_path}", f"_filter={filter_json}", f"_group=customcloud_upload_{self.current_app_id}")
             else:
                 excludes = get_excludes_function(path["path"]) if get_excludes_function else []
 
@@ -280,28 +286,41 @@ class Plugin:
                         })
                         args.extend([f"_filter={filter_json}"])
 
-                    args.extend(["_group=decky_sync"])
+                    args.extend([f"_group=customcloud_upload_{self.current_app_id}"])
 
                     copy_job = await asyncio.create_subprocess_exec(*args)
                     await copy_job.wait()
                 else:
-                    directory, filename = os.path.split(path['path'])
+                    _, filename = os.path.split(path['path'])
 
                     drive, srcRemote = os.path.splitdrive(path['path'])
-
                     srcRemote = srcRemote.lstrip(r'\/').replace('\\', '/')
 
                     args = [*rclone_shared_args, f"--rc-addr=localhost:5572", "rc", "operations/copyfile", f"srcFs={drive if drive else '/'}", f"srcRemote={srcRemote}", "dstFs=customcloud-remote:",f"dstRemote={full_target_path}/{filename}"]
 
-                    args.extend(["_group=decky_file_copy"])
+                    args.extend([f"_group=customcloud_upload_{self.current_app_id}"])
 
                     copy_job = await asyncio.create_subprocess_exec(*args)
                     await copy_job.wait()
-            decky.logger.info(f"Creating path marker in {full_target_path}")
+            decky.logger.info(f"Creating path marker in {full_target_path}")\
+            
+            with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False) as marker_file:
+                marker_file.write(path["path"])
+                marker_file.close()
 
-            process = await asyncio.create_subprocess_exec(rclone_path, "rcat", f"customcloud-remote:{full_target_path}/.original-path", "--rc-addr=localhost:5572", "--rc-no-auth", "--config", rclone_config_path, "-vv", stdin=asyncio.subprocess.PIPE)
+                drive, srcRemote = os.path.splitdrive(marker_file.name)
+                srcRemote = srcRemote.lstrip(r'\/').replace('\\', '/')
 
-            await process.communicate(input=(path["path"]).encode("utf-8"))
+                marker_job = await asyncio.create_subprocess_exec(*rclone_shared_args, f"--rc-addr=localhost:5572", "rc", "operations/copyfile", f"srcFs={drive if drive else '/'}",  f"srcRemote={srcRemote}", "dstFs=customcloud-remote:", f"dstRemote={full_target_path}/.original-path", f"_group=customcloud_rcat_{self.current_app_id}", "-vv")
+
+                await marker_job.wait()
+
+                if os.path.exists(marker_file.name):
+                   os.remove(marker_file.name)
+                
+                decky.logger.info(f"Path marker created")
+
+                    
         
         tasks = [process_single_path(i, path) for i, path in enumerate(paths)]
 
@@ -311,10 +330,9 @@ class Plugin:
         self.sync_progress = None
         self.status = "uploading_config"
 
-        await asyncio.create_subprocess_exec(rclone_path, "rcd", "--rc-no-auth", "--config", rclone_config_path, "-vv", f"--log-file={os.path.join(log_dir, 'rclone.log')}")
-        await asyncio.sleep(1.0)
+        await asyncio.create_subprocess_exec(rclone_path, "rcd", "--rc-no-auth", "--config", rclone_config_path, "-vv", f"--log-file={os.path.join(log_dir, f'rclone-{self.current_app_id}-{timestamp}.log')}")
 
-        self.loop.create_task(self.update_progress_alt())
+        self.loop.create_task(self.update_progress())
         
         game_cloud_folder = self.app_settings.getSetting("game_folder", f"game-{str(self.current_app_id)}")
 
@@ -356,10 +374,9 @@ class Plugin:
         self.sync_progress = None
         self.status = "uploading_save"
 
-        await asyncio.create_subprocess_exec(rclone_path, "rcd", "--rc-no-auth", "--config", rclone_config_path, "-vv", f"--log-file={os.path.join(log_dir, 'rclone.log')}")
-        await asyncio.sleep(1.0)
+        await asyncio.create_subprocess_exec(rclone_path, "rcd", "--rc-no-auth", "--config", rclone_config_path, "-vv", f"--log-file={os.path.join(log_dir, f'rclone-{self.current_app_id} {timestamp}.log')}")
 
-        self.loop.create_task(self.update_progress_alt())
+        self.loop.create_task(self.update_progress())
 
         game_cloud_folder = self.app_settings.getSetting("game_folder", f"game-{str(self.current_app_id)}")
 
@@ -401,37 +418,35 @@ class Plugin:
 
         self.loop.create_task(self.fake_update_progress())
     
-    async def update_progress_alt(self):
+    async def update_progress(self):
         async def get_progress_data():
-            output = await asyncio.create_subprocess_exec(rclone_path, "rc", "core/stats", f"--rc-addr=localhost:5572", stdout=asyncio.subprocess.PIPE)
+            output = await asyncio.create_subprocess_exec(rclone_path, "rc", "core/stats", stdout=asyncio.subprocess.PIPE)
 
             stdout, _ = await output.communicate()
 
             if output.returncode == 0 or output.returncode == 5:
                 progress_data = json.loads(stdout.decode())
 
-                # print(json.dumps(progress_data, indent=4))
-
                 return progress_data
             else:
                 print(f"Return code: {output.returncode}")
                 decky.logger.error(stdout.decode())
             
-        async def get_active_jobs():
-            output = await asyncio.create_subprocess_exec(rclone_path, "rc", "job/list", f"--rc-addr=localhost:5572", stdout=asyncio.subprocess.PIPE)
+        async def get_jobs():
+            output = await asyncio.create_subprocess_exec(rclone_path, "rc", "job/list", stdout=asyncio.subprocess.PIPE)
 
             stdout, _ = await output.communicate()
 
             if output.returncode == 0:
                 job_list = json.loads(stdout.decode())
 
-                return job_list["runningIds"]
+                return job_list
             else:
                 print(f"Return code: {output.returncode}")
                 decky.logger.error(stdout.decode())
         
         async def get_job_progress(job_id):
-            output = await asyncio.create_subprocess_exec(rclone_path, "rc", "job/status", f"jobid={job_id}", stdout=asyncio.subprocess.PIPE)
+            output = await asyncio.create_subprocess_exec(rclone_path, "rc", "job/status", f"jobid={job_id}",  stdout=asyncio.subprocess.PIPE)
 
             stdout, _ = await output.communicate()
 
@@ -445,11 +460,11 @@ class Plugin:
         # We need some time for certain jobs to "warm up" or they won't show up yet and the tracker will dip prematurely
         await asyncio.sleep(3)
         decky.logger.info("Beginning check loop")
-        active_jobs = await get_active_jobs()
+        active_jobs = (await get_jobs())["runningIds"]
 
         all_job_progress = await asyncio.gather(*(get_job_progress(job) for job in active_jobs))
 
-        all_jobs_finished = len(active_jobs) == 0 or all(job["finished"] == True for job in all_job_progress if "job/" not in job["group"])
+        all_jobs_finished = len(active_jobs) == 0 or all(job["finished"] is True for job in all_job_progress if "job/" not in job["group"])
 
         current_progress_data = await get_progress_data()
         
@@ -457,7 +472,7 @@ class Plugin:
         else: self.sync_progress = (current_progress_data["bytes"] / current_progress_data["totalBytes"]) * 100
 
         while all_jobs_finished is False:
-            active_jobs = await get_active_jobs()
+            active_jobs = (await get_jobs())["runningIds"]
             all_job_progress = await asyncio.gather(*(get_job_progress(job) for job in active_jobs))
             all_jobs_finished = len(active_jobs) == 0 or all(job["finished"] == True for job in all_job_progress if "job/" not in job["group"])
 
@@ -468,73 +483,33 @@ class Plugin:
             if current_progress_data["totalBytes"] == 0: self.sync_progress = None
             else: self.sync_progress = (current_progress_data["bytes"] / current_progress_data["totalBytes"]) * 100
 
-            if self.sync_progress is None or self.sync_progress < 100: await decky.emit("progress_event", {"progress":self.sync_progress,"eta":current_progress_data["eta"]}, "Task still in progress", False)
+            if self.sync_progress is None or self.sync_progress < 100: await decky.emit("progress_event", self.sync_progress, current_progress_data["eta"], "Task still in progress")
 
             await asyncio.sleep(1)
+        
+        finished_job_ids = (await get_jobs())["finishedIds"]
+        finished_jobs = await asyncio.gather(*(get_job_progress(job) for job in finished_job_ids))
+        failed_jobs = [job for job in finished_jobs if job is not None and job.get("success") is not True and "job/" not in job.get("group")]
 
+        if len(failed_jobs) > 0:
+            decky.logger.error(f"Failed jobs: {failed_jobs}")
 
-        await decky.emit("progress_event", {"progress":100,"eta":0}, "Task complete")
+            await decky.emit("progress_event", 100, 0, "Syncing complete with errors")
+        else: await decky.emit("progress_event", 100, 0, "Syncing complete")
 
         decky.logger.info("Cloud sync complete")
         self.status = "idle"
-        
-
-    async def update_progress(self):
-        async def get_progress_data():
-            output = await asyncio.create_subprocess_exec(rclone_path, "rc", "core/stats", f"--rc-addr=localhost:5572", stdout=asyncio.subprocess.PIPE)
-
-            stdout, _ = await output.communicate()
-
-            if output.returncode == 0 or output.returncode == 5:
-                progress_data = json.loads(stdout.decode())
-
-                print(f"Listed: {progress_data.get('listed')}, checks: {progress_data.get('checks')}, total checks: {progress_data.get('totalChecks')}")
-
-                return progress_data
-            else:
-                print(f"Return code: {output.returncode}")
-                raise ValueError(stdout.decode())
-        
-        decky.emit("progress_event", {"progress":None,"eta":0}, "Task still in progress", False)
-
-        decky.logger.info("Beginning sync tracking")
-        current_progress_data = await get_progress_data()
-        
-        if not current_progress_data.get("totalBytes") or (current_progress_data.get("totalBytes") and current_progress_data["totalBytes"] == 0): self.sync_progress = None
-        else: self.sync_progress = (current_progress_data["bytes"] / current_progress_data["totalBytes"]) * 100
-
-        while self.sync_progress is None or self.sync_progress < 100:
-            current_progress_data = await get_progress_data()
-
-            if current_progress_data.get("status") and current_progress_data["status"] == 503:
-                break
-
-            if current_progress_data["listed"] == current_progress_data["totalChecks"] and current_progress_data["totalChecks"] > 0 and current_progress_data.get("checks") == current_progress_data["totalChecks"]:
-                print(json.dumps(current_progress_data, indent=4))
-                break
-
-            if current_progress_data["totalBytes"] == 0: self.sync_progress = None
-            else: self.sync_progress = (current_progress_data["bytes"] / current_progress_data["totalBytes"]) * 100
-
-            if self.sync_progress is None or self.sync_progress < 100: await decky.emit("progress_event", {"progress":self.sync_progress,"eta":current_progress_data["eta"]}, "Task still in progress", False)
-            await asyncio.sleep(1)
-
-        await decky.emit("progress_event", {"progress":100,"eta":0}, "Task complete")
-
-        decky.logger.info("Cloud sync complete")
-        self.status = "idle"
-
-
+    
     async def fake_update_progress(self):
         while self.sync_progress < 100:
             self.sync_progress += random.randint(2,25)
 
             self.sync_progress = min(self.sync_progress,100)
 
-            if self.sync_progress < 100: await decky.emit("progress_event", self.sync_progress, "Task still in progress", False)
+            if self.sync_progress < 100: await decky.emit("progress_event", self.sync_progress, 0, "Task still in progress", False)
             await asyncio.sleep(1)
         
-        await decky.emit("progress_event", 100, "Task complete")
+        await decky.emit("progress_event", 100, 0, "Task complete")
 
         decky.logger.info("Cloud sync complete")
         self.status = "idle"
