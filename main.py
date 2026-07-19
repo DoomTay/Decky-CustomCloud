@@ -169,8 +169,6 @@ class Plugin:
         
         decky.logger.info(f"App found. Collating paths.")
 
-        is_native_linux = any(any((when.get("os") == "linux") for when in path_data["when"]) for _,path_data in paths.items())
-
         for possible_path,path_data in paths.items():
             resolved_path = self.resolve_path(possible_path, self.is_native_linux)
 
