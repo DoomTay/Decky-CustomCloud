@@ -21,7 +21,6 @@ log_dir = os.environ["DECKY_PLUGIN_LOG_DIR"]
 steam_dir = os.path.join(os.environ["HOME"],".local","share","Steam")
 rclone_path = os.path.join(runtime_dir,"rclone")
 rclone_config_path = os.path.join(settings_dir,"rclone.conf")
-timestamp = datetime.now().strftime('%Y-%m-%d %H.%M.%S')
 
 class Plugin:
     async def update_rclone(self):
@@ -311,7 +310,7 @@ class Plugin:
                 drive, srcRemote = os.path.splitdrive(marker_file.name)
                 srcRemote = srcRemote.lstrip(r'\/').replace('\\', '/')
 
-                marker_job = await asyncio.create_subprocess_exec(*rclone_shared_args, f"--rc-addr=localhost:5572", "rc", "operations/copyfile", f"srcFs={drive if drive else '/'}",  f"srcRemote={srcRemote}", "dstFs=customcloud-remote:", f"dstRemote={full_target_path}/.original-path", f"_group=customcloud_rcat_{self.current_app_id}", "-vv")
+                marker_job = await asyncio.create_subprocess_exec(*rclone_shared_args, f"--rc-addr=localhost:5572", "rc", "operations/copyfile", f"srcFs={drive if drive else '/'}",  f"srcRemote={srcRemote}", "dstFs=customcloud-remote:", f"dstRemote={full_target_path}/.original-path", f"_group=customcloud_rcat_{self.current_app_id}")
 
                 await marker_job.wait()
 
@@ -329,6 +328,8 @@ class Plugin:
     async def rclone_push_config(self,push_configsaves):
         self.sync_progress = None
         self.status = "uploading_config"
+
+        timestamp = datetime.now().strftime('%Y-%m-%d %H.%M.%S')
 
         await asyncio.create_subprocess_exec(rclone_path, "rcd", "--rc-no-auth", "--config", rclone_config_path, "-vv", f"--log-file={os.path.join(log_dir, f'rclone-{self.current_app_id}-{timestamp}.log')}")
 
@@ -373,6 +374,8 @@ class Plugin:
     async def rclone_push_save(self):
         self.sync_progress = None
         self.status = "uploading_save"
+
+        timestamp = datetime.now().strftime('%Y-%m-%d %H.%M.%S')
 
         await asyncio.create_subprocess_exec(rclone_path, "rcd", "--rc-no-auth", "--config", rclone_config_path, "-vv", f"--log-file={os.path.join(log_dir, f'rclone-{self.current_app_id} {timestamp}.log')}")
 
