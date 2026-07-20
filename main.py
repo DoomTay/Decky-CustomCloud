@@ -272,7 +272,7 @@ class Plugin:
                     "IncludeRule": [f"{filter}"],
                 })
 
-                await asyncio.create_subprocess_exec(*rclone_shared_args, "rc", "sync/sync", f"srcFs={base_path}", f"dstFs=customcloud-remote:{full_target_path}", f"_filter={filter_json}", f"_group=customcloud_upload_{self.current_app_id}")
+                copy_job = await asyncio.create_subprocess_exec(*rclone_shared_args, "rc", "sync/sync", f"srcFs={base_path}", f"dstFs=customcloud-remote:{full_target_path}", f"_filter={filter_json}", f"_group=customcloud_upload_{self.current_app_id}")
     
             else:
                 excludes = get_excludes_function(path["path"]) if get_excludes_function else []
@@ -289,7 +289,6 @@ class Plugin:
                     args.extend([f"_group=customcloud_upload_{self.current_app_id}"])
 
                     copy_job = await asyncio.create_subprocess_exec(*args)
-                    await copy_job.wait()
                 else:
                     _, filename = os.path.split(path['path'])
 
@@ -301,7 +300,9 @@ class Plugin:
                     args.extend([f"_group=customcloud_upload_{self.current_app_id}"])
 
                     copy_job = await asyncio.create_subprocess_exec(*args)
-                    await copy_job.wait()
+
+            await copy_job.wait()
+
             decky.logger.info(f"Creating path marker in {full_target_path}")\
             
             with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False) as marker_file:
