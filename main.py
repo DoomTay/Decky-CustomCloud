@@ -257,22 +257,23 @@ class Plugin:
 
             decky.logger.info(f"Processing {path['path']}")
             if "*" in path["path"]:
-                if path["path"].endswith("*"):
-                    path_and_filter = path["path"].replace("\\","/").rsplit('/', 1)
+                normalized_path = path["path"].replace("\\","/")
 
-                    filter_json=json.dumps({
-                        "IncludeRule": [f"/{path_and_filter[1]}*"],
-                    })
+                first_asterisk_index = normalized_path.find("*")
 
-                    await asyncio.create_subprocess_exec(*rclone_shared_args, "rc", "sync/sync", f"srcFs={path_and_filter[0]}", f"dstFs=customcloud-remote:{full_target_path}", f"_filter={filter_json}", f"_group=customcloud_upload_{self.current_app_id}")
-                else:
-                    path_and_filter = path["path"].split('*', 1)
+                end_of_base_path = normalized_path.rfind("/",0,first_asterisk_index)
 
-                    filter_json=json.dumps({
-                        "IncludeRule": [f"*{path_and_filter[1]}*"],
-                    })
-                    
-                    await asyncio.create_subprocess_exec(*rclone_shared_args, "rc", "sync/sync", f"srcFs={path_and_filter[0]}", f"dstFs=customcloud-remote:{full_target_path}", f"_filter={filter_json}", f"_group=customcloud_upload_{self.current_app_id}")
+                base_path = normalized_path[:end_of_base_path]
+                filter = normalized_path[end_of_base_path:]
+
+                if filter.endswith("*"): filter += "*"
+
+                filter_json=json.dumps({
+                    "IncludeRule": [f"{filter}"],
+                })
+
+                await asyncio.create_subprocess_exec(*rclone_shared_args, "rc", "sync/sync", f"srcFs={base_path}", f"dstFs=customcloud-remote:{full_target_path}", f"_filter={filter_json}", f"_group=customcloud_upload_{self.current_app_id}")
+    
             else:
                 excludes = get_excludes_function(path["path"]) if get_excludes_function else []
 
