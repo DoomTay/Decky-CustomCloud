@@ -24,10 +24,11 @@ interface ConfigContentProps {
     setSelectedGame: React.Dispatch<React.SetStateAction<SingleDropdownOption | null>>,
     setAppIsInstalled: React.Dispatch<React.SetStateAction<boolean>>,
     setGamePaths: React.Dispatch<React.SetStateAction<GamePathSetting[]>>,
-    setLoadingPaths: React.Dispatch<React.SetStateAction<boolean>>
+    setLoadingPaths: React.Dispatch<React.SetStateAction<boolean>>,
+    setCloudGameFolder: React.Dispatch<React.SetStateAction<string>>
 }
 
-function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsInstalled, setGamePaths, setLoadingPaths}: ConfigContentProps)
+function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsInstalled, setGamePaths, setLoadingPaths, setCloudGameFolder}: ConfigContentProps)
 {
     const [rcloneStatus, setRcloneStatus] = useState("idle");
     const [rcloneProgress, setRcloneProgress] = useState<number | undefined>();
@@ -121,6 +122,8 @@ function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsI
             setCloudDownloadSaveEnabled(newSettings['sync_save_before_game']);
 
             setGamePaths(newSettings['paths']);
+
+            setCloudGameFolder(newSettings['game_folder']);
 
             setGameInfoText(details);
 
@@ -349,6 +352,7 @@ export default function CustomCloudConfig() {
     const [selectedGame, setSelectedGame] = useState<SingleDropdownOption|null>(null);
     const [appIsInstalled, setAppIsInstalled] = useState(true);
     const [gamePaths, setGamePaths] = useState<GamePathSetting[]>([]);
+    const [cloudGameFolder, setCloudGameFolder] = useState("");
     const [loadingPaths, setLoadingPaths] = useState(false);
 
     useEffect(() =>
@@ -357,6 +361,13 @@ export default function CustomCloudConfig() {
 
         call<[key: string, value: any], any>("set_app_setting","paths", gamePaths);
     }, [gamePaths, selectedGame])
+
+    useEffect(() =>
+    {
+        if(cloudGameFolder == "") return;
+
+        call<[key: string, value: any], any>("set_app_setting","game_folder", cloudGameFolder);
+    }, [cloudGameFolder, selectedGame])
 
     return <SidebarNavigation pages={
         [
@@ -369,7 +380,8 @@ export default function CustomCloudConfig() {
                 setSelectedGame={setSelectedGame} 
                 setAppIsInstalled={setAppIsInstalled}
                 setGamePaths={setGamePaths}
-                setLoadingPaths={setLoadingPaths} />
+                setLoadingPaths={setLoadingPaths}
+                setCloudGameFolder={setCloudGameFolder} />
             ),
             visible: true,
             route: '/customcloud-config/config',
@@ -383,6 +395,8 @@ export default function CustomCloudConfig() {
                 setGamePaths={setGamePaths}
                 loadingPaths={loadingPaths}
                 setLoadingPaths={setLoadingPaths}
+                cloudGameFolder={cloudGameFolder}
+                setCloudGameFolder={setCloudGameFolder}
                 appIsInstalled={appIsInstalled} />
             ),
             visible: true,

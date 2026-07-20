@@ -37,7 +37,7 @@ function GamePathField({value, disabled, onChange}: GamePathFieldProps)
             }}
         >
         <TextField
-        value={value.path}
+        defaultValue={value.path}
         disabled={disabled}
         onChange={(e) => onChange({...value, path: e.target.value})} />
         <Dropdown
@@ -60,10 +60,12 @@ interface GamePathsProps {
     setGamePaths: React.Dispatch<React.SetStateAction<GamePathSetting[]>>,
     loadingPaths: boolean,
     setLoadingPaths: React.Dispatch<React.SetStateAction<boolean>>,
+    cloudGameFolder: string,
+    setCloudGameFolder: React.Dispatch<React.SetStateAction<string>>,
     appIsInstalled: boolean
 }
 
-export default function GamePaths({paths, setGamePaths, loadingPaths, setLoadingPaths, appIsInstalled}: GamePathsProps) {
+export default function GamePaths({paths, setGamePaths, loadingPaths, setLoadingPaths, cloudGameFolder, setCloudGameFolder, appIsInstalled}: GamePathsProps) {
     function addPath()
     {
         setGamePaths([...paths, {path: "", type: "configsave"}]);
@@ -141,8 +143,8 @@ export default function GamePaths({paths, setGamePaths, loadingPaths, setLoading
         <div>
         <TextField
         label="Game Folder Name"
-        >
-        </TextField>
+        defaultValue={cloudGameFolder}
+        onChange={(e) => setCloudGameFolder(e.target.value)} />
         </div>
         <DialogButton
         onClick={addPath}

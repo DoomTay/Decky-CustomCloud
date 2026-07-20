@@ -378,10 +378,10 @@ class Plugin:
 
         self.loop.create_task(self.update_progress())
 
-        game_cloud_folder = self.app_settings.getSetting("game_folder", f"game-{str(self.current_app_id)}")
+        cloud_game_folder = self.app_settings.getSetting("game_folder", f"game-{str(self.current_app_id)}")
 
         base_backup_path = self.global_settings.getSetting("cloud_directory", "CustomCloud-Backup")
-        game_backup_path = f"{base_backup_path}/{game_cloud_folder}"
+        game_backup_path = f"{base_backup_path}/{cloud_game_folder}"
 
         app_paths = self.app_settings.getSetting("paths","[]")
 
