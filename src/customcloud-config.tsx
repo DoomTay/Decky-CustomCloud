@@ -210,7 +210,7 @@ function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsI
             buttonBody={<FaCloudDownloadAlt />}
             disabled={!appIsInstalled || rcloneStatus != "idle"}
             nProgress={rcloneProgress}
-            sOperationText={"Downloading " + rcloneProgress + "%"}
+            sOperationText={rcloneProgress != undefined ? "Downloading " + Math.floor(rcloneProgress) + "%" : "Downloading"}
             rtEstimatedCompletionTime={(Number(new Date()) / 1000) + rcloneEta}
         />
         </DialogControlsSection>
@@ -232,7 +232,7 @@ function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsI
             onClick={() => {
                 setRcloneProgress(undefined)
                 setRcloneEta(0)
-                call<[]>("rclone_push_save");
+                call<[push_configsaves: boolean]>("rclone_push_save",true);
                 updateRcloneStatus();
             }}
             label="Push to cloud"
@@ -268,7 +268,7 @@ function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsI
             buttonBody={<FaCloudDownloadAlt />}
             disabled={!appIsInstalled || rcloneStatus != "idle"}
             nProgress={rcloneProgress}
-            sOperationText={"Downloading " + rcloneProgress + "%"}
+            sOperationText={rcloneProgress != undefined ? "Downloading " + Math.floor(rcloneProgress) + "%" : "Downloading"}
             rtEstimatedCompletionTime={(Number(new Date()) / 1000) + rcloneEta}
         />
         </DialogControlsSection>
