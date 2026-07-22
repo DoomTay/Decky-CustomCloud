@@ -247,6 +247,12 @@ class Plugin:
     async def start_timer(self):
         self.loop.create_task(self.long_running())
 
+    async def rclone_rc_get_result(self,command,args=[]):
+        rc_command = await asyncio.create_subprocess_exec(rclone_path, "rc", command, *args, stdout=asyncio.subprocess.PIPE)
+        stdout, _ = await rc_command.communicate()
+
+        return json.loads(stdout.decode())
+
     async def rclone_process_paths(self,paths,game_backup_path,folder_prefix,get_excludes_function=None):
         # await asyncio.create_subprocess_exec(rclone_path, "rc", "config/setpath", f"path={rclone_config_path}")
 
@@ -328,11 +334,7 @@ class Plugin:
         await asyncio.gather(*tasks)
     
     async def rclone_pull_paths(self,game_backup_path,folder_prefix,exclude_prefix=None):
-        list_command = await asyncio.create_subprocess_exec(rclone_path, "rc", "operations/list", f"fs=customcloud-remote:", f"remote={game_backup_path}", f"_group=customcloud_list_{self.current_app_id}", stdout=asyncio.subprocess.PIPE)
-
-        stdout, _ = await list_command.communicate()
-
-        folder_list = json.loads(stdout.decode())["list"]
+        folder_list = (await self.rclone_rc_get_result("operations/list",[f"fs=customcloud-remote:", f"remote={game_backup_path}", f"_group=customcloud_list_{self.current_app_id}"]))["list"]
 
         folders_to_pull = [folder for folder in folder_list if folder["Name"].startswith(folder_prefix)]
 
@@ -405,16 +407,13 @@ class Plugin:
                                     "fs": "customcloud-remote:",
                                     "remote": f"{folder['Path']}/{depth}",
                                     "opt": {"noModTime": True},
-                                    "_group": f"customcloud_depth_check_fish_{self.current_app_id}"
                                 }
 
                                 batch_jobs.append(params)
 
                             batch_json = json.dumps({"inputs": batch_jobs, "_group": f"customcloud_depth_check_{self.current_app_id}"})
 
-                            depth_check = await asyncio.create_subprocess_exec(rclone_path, "rc", "job/batch", "--json", batch_json, stdout=asyncio.subprocess.PIPE)
-                            stdout, _ = await depth_check.communicate()
-                            depth_check_result = json.loads(stdout.decode())["results"]
+                            depth_check_result = (await self.rclone_rc_get_result("job/batch", ["--json", batch_json]))["results"]
 
                             cutoff_index, _ = next((i,depth) for i,depth in enumerate(depth_check_result) if depth.get("status") == 404 or len(depth.get("list",[])) == 0)
                             cutoff_point = path_depths[cutoff_index]
@@ -444,13 +443,17 @@ class Plugin:
 
         await asyncio.gather(*tasks)
 
+    async def rclone_start_rcd(self):
+        timestamp = datetime.now().strftime('%Y-%m-%d %H.%M.%S')
+
+        await asyncio.create_subprocess_exec(rclone_path, "rcd", "--rc-no-auth", "--config", rclone_config_path, "-vv", f"--log-file={os.path.join(log_dir, f'rclone-{self.current_app_id}-{timestamp}.log')}")
+        await asyncio.sleep(1)
+
     async def rclone_push_config(self,push_configsaves):
         self.sync_progress = None
         self.status = "uploading_config"
 
-        timestamp = datetime.now().strftime('%Y-%m-%d %H.%M.%S')
-
-        await asyncio.create_subprocess_exec(rclone_path, "rcd", "--rc-no-auth", "--config", rclone_config_path, "-vv", f"--log-file={os.path.join(log_dir, f'rclone-{self.current_app_id}-{timestamp}.log')}")
+        await self.rclone_start_rcd()
 
         self.loop.create_task(self.update_progress())
         
@@ -494,9 +497,7 @@ class Plugin:
         self.sync_progress = None
         self.status = "uploading_save"
 
-        timestamp = datetime.now().strftime('%Y-%m-%d %H.%M.%S')
-
-        await asyncio.create_subprocess_exec(rclone_path, "rcd", "--rc-no-auth", "--config", rclone_config_path, "-vv", f"--log-file={os.path.join(log_dir, f'rclone-{self.current_app_id} {timestamp}.log')}")
+        await self.rclone_start_rcd()
 
         self.loop.create_task(self.update_progress())
 
@@ -540,9 +541,7 @@ class Plugin:
         self.sync_progress = None
         self.status = "downloading_config"
 
-        timestamp = datetime.now().strftime('%Y-%m-%d %H.%M.%S')
-
-        await asyncio.create_subprocess_exec(rclone_path, "rcd", "--rc-no-auth", "--config", rclone_config_path, "-vv", f"--log-file={os.path.join(log_dir, f'rclone-{self.current_app_id}-{timestamp}.log')}")
+        await self.rclone_start_rcd()
 
         self.loop.create_task(self.update_progress())
         
@@ -553,8 +552,6 @@ class Plugin:
 
         await self.rclone_pull_paths(game_backup_path,"config","save")
 
-        # self.loop.create_task(self.fake_update_progress())
-
     async def rclone_pull_save(self):
         self.sync_progress = None
         self.status = "downloading_save"
@@ -563,42 +560,13 @@ class Plugin:
     
     async def update_progress(self):
         async def get_progress_data():
-            output = await asyncio.create_subprocess_exec(rclone_path, "rc", "core/stats", stdout=asyncio.subprocess.PIPE)
-
-            stdout, _ = await output.communicate()
-
-            if output.returncode == 0 or output.returncode == 5:
-                progress_data = json.loads(stdout.decode())
-
-                return progress_data
-            else:
-                print(f"Return code: {output.returncode}")
-                decky.logger.error(stdout.decode())
+            return await self.rclone_rc_get_result("core/stats")
             
         async def get_jobs():
-            output = await asyncio.create_subprocess_exec(rclone_path, "rc", "job/list", stdout=asyncio.subprocess.PIPE)
-
-            stdout, _ = await output.communicate()
-
-            if output.returncode == 0:
-                job_list = json.loads(stdout.decode())
-
-                return job_list
-            else:
-                print(f"Return code: {output.returncode}")
-                decky.logger.error(stdout.decode())
+            return await self.rclone_rc_get_result("job/list")
         
         async def get_job_progress(job_id):
-            output = await asyncio.create_subprocess_exec(rclone_path, "rc", "job/status", f"jobid={job_id}",  stdout=asyncio.subprocess.PIPE)
-
-            stdout, _ = await output.communicate()
-
-            if output.returncode == 0:
-                progress_data = json.loads(stdout.decode())
-
-                return progress_data
-            else:
-                decky.logger.error(stdout.decode())
+            return await self.rclone_rc_get_result("job/status",[f"jobid={job_id}"])
         
         await decky.emit("progress_event", None, None, "Task still in progress")
 
@@ -646,6 +614,8 @@ class Plugin:
         self.status = "idle"
     
     async def fake_update_progress(self):
+        self.sync_progress = 0
+
         while self.sync_progress < 100:
             self.sync_progress += random.randint(2,25)
 
