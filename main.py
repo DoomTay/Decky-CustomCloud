@@ -556,7 +556,16 @@ class Plugin:
         self.sync_progress = None
         self.status = "downloading_save"
 
-        self.loop.create_task(self.fake_update_progress())
+        await self.rclone_start_rcd()
+
+        self.loop.create_task(self.update_progress())
+        
+        game_cloud_folder = self.app_settings.getSetting("game_folder", f"game-{str(self.current_app_id)}")
+
+        base_backup_path = self.global_settings.getSetting("cloud_directory", "CustomCloud-Backup")
+        game_backup_path = f"{base_backup_path}/{game_cloud_folder}"
+
+        await self.rclone_pull_paths(game_backup_path,"save","config")
     
     async def update_progress(self):
         async def get_progress_data():
@@ -613,22 +622,6 @@ class Plugin:
         decky.logger.info("Cloud sync complete")
         self.status = "idle"
     
-    async def fake_update_progress(self):
-        self.sync_progress = 0
-
-        while self.sync_progress < 100:
-            self.sync_progress += random.randint(2,25)
-
-            self.sync_progress = min(self.sync_progress,100)
-
-            if self.sync_progress < 100: await decky.emit("progress_event", self.sync_progress, 0, "Task still in progress", False)
-            await asyncio.sleep(1)
-        
-        await decky.emit("progress_event", 100, 0, "Task complete")
-
-        decky.logger.info("Cloud sync complete")
-        self.status = "idle"
-
     # Migrations that should be performed before entering `_main()`.
     async def _migration(self):
         decky.logger.info("Migrating")
