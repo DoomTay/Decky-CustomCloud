@@ -15,8 +15,9 @@ import {
 } from "@decky/ui";
 import { AppDetails } from "@decky/ui/dist/globals/steam-client/App";
 import { ReactNode, useEffect, useState } from "react";
-import { FaCloudUploadAlt, FaCloudDownloadAlt, FaCog, FaSlash } from "react-icons/fa";
+import { FaCloudUploadAlt, FaCloudDownloadAlt, FaCog, FaSlash, FaFileAlt } from "react-icons/fa";
 import GamePaths, { GamePathSetting } from "./customcloud-gamepaths";
+import LogView from "./customcloud-logview";
 
 interface ConfigContentProps {
     selectedGame: SingleDropdownOption | null,
@@ -402,6 +403,15 @@ export default function CustomCloudConfig() {
             visible: true,
             route: '/customcloud-config/gamepaths',
             icon: <FaSlash />
+        },
+        {
+            title: "Log View",
+            content: (
+                <LogView />
+            ),
+            visible: true,
+            route: '/customcloud-config/logview',
+            icon: <FaFileAlt />
         }
         ]
     } />;

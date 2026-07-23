@@ -228,7 +228,24 @@ class Plugin:
 
         self.app_settings.setSetting(key, value)
         self.app_settings.commit()
-    
+
+    async def get_rclone_log(self):
+        no_log_file = "No log file available"
+        if not self.current_app_id: return no_log_file
+
+        files = os.listdir(path=log_dir)
+
+        log_files = [file for file in files if str(self.current_app_id) in file]
+
+        log_index = len(log_files) - 1
+
+        if log_index == -1: return no_log_file
+
+        with open(os.path.join(log_dir,log_files[log_index]),"r") as file:
+            contents = file.read()
+
+            return contents
+            
     async def get_current_app_id(self):
         return self.current_app_id
     
