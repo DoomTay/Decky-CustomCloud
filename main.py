@@ -231,7 +231,7 @@ class Plugin:
 
     async def get_rclone_log(self):
         no_log_file = "No log file available"
-        if not self.current_app_id: return no_log_file
+        if not getattr(self, "current_app_id", None): return no_log_file
 
         files = os.listdir(path=log_dir)
 
@@ -242,9 +242,7 @@ class Plugin:
         if log_index == -1: return no_log_file
 
         with open(os.path.join(log_dir,log_files[log_index]),"r") as file:
-            contents = file.read()
-
-            return contents
+            return file.read()
             
     async def get_current_app_id(self):
         return self.current_app_id
