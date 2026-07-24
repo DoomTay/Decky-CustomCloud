@@ -3,9 +3,13 @@ import {
   PanelSection,
   PanelSectionRow,
   Navigation,
-  staticClasses
+  staticClasses,
+  showModal,
+  ConfirmModal,
+  TextField
 } from "@decky/ui";
 import {
+  call,
   callable,
   definePlugin,
   routerHook,
@@ -13,13 +17,29 @@ import {
 } from "@decky/api"
 import { FaCloud } from "react-icons/fa";
 import CustomCloudConfig from "./customcloud-config";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const downloadManifest = callable<[], {success: boolean, status_code: number, status_text: string, error: string}>("download_ludusavi_manifest");
 const updateRclone = callable<[], {success: boolean, status_code: number, status_text: string, error: string}>("update_rclone");
 
 function Content() {
   const [downloadingRclone, setDownloadingRclone] = useState<boolean>(false);
+  const defaultCloudDirectory = "CustomCloud-Backup"
+  const [cloudDirectory, setCloudDirectory] = useState<string>(defaultCloudDirectory);
+  const tempCloudDirectory = useRef<string>("")
+
+  useEffect(() =>
+  {
+      async function getCloudDirectory()
+      {
+        let cloudDirectoryFromSettings = await call<[key: string], string>("get_global_setting","cloud_directory");
+
+        if(cloudDirectoryFromSettings != "") setCloudDirectory(cloudDirectoryFromSettings)
+      }
+
+      getCloudDirectory()
+
+  }, [])
 
   return (
     <PanelSection>
@@ -32,6 +52,44 @@ function Content() {
           }}
         >
           {"Config Settings"}
+        </ButtonItem>
+        <ButtonItem
+          layout="below"
+          onClick={async () => {
+            showModal(
+            <ConfirmModal
+                strTitle="Cloud directory"
+                strDescription={
+                <TextField 
+                  defaultValue={cloudDirectory}
+                  onChange={(e) => {tempCloudDirectory.current = e.target.value}}
+                  />
+                }
+                onOK={async () => {
+                  setCloudDirectory(tempCloudDirectory.current)
+
+                  call<[key: string, value: any], any>("set_global_setting","cloud_directory", tempCloudDirectory.current);
+                }}
+                onMiddleButton={async () => {
+                  showModal(
+                    <ConfirmModal
+                        strTitle="Warning"
+                        strDescription="Reset cloud directory to default?"
+                        bDestructiveWarning={true}
+                        onOK={async () => {
+                          setCloudDirectory(defaultCloudDirectory)
+
+                          call<[key: string, value: any], any>("set_global_setting","cloud_directory", defaultCloudDirectory);
+                        }}
+                        />
+                    )
+                }}
+                strMiddleButtonText="Reset to default"
+                />
+            )
+          }}
+        >
+          {"Set cloud directory"}
         </ButtonItem>
         <ButtonItem
           layout="below"

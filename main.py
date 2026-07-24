@@ -136,8 +136,6 @@ class Plugin:
             self.global_settings.setSetting("cloud_directory", "CustomCloud-Backup")
             self.global_settings.commit()
 
-        # await asyncio.create_subprocess_exec(rclone_path, "rcd", "--rc-no-auth")
-
         self.app_settings = None
         self.sync_progress = 0
         self.status = "idle"
@@ -200,6 +198,17 @@ class Plugin:
         self.app_settings.commit()
 
         return self.app_settings.getSetting("paths")
+
+    async def get_global_setting(self, key):
+        if not self.global_settings: return
+
+        return self.global_settings.getSetting(key)
+        
+    async def set_global_setting(self, key, value):
+        if not self.global_settings: return
+
+        self.global_settings.setSetting(key, value)
+        self.global_settings.commit()
 
     async def get_app_settings(self,appInfo):
         self.app_settings = SettingsManager(name=f"settings_{appInfo['unAppID']}", settings_directory=settings_dir)
