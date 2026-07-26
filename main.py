@@ -329,8 +329,20 @@ class Plugin:
         async def get_jobs():
             return await Rclone.rc_get_result("job/list")
         
-        async def get_job_progress(job_id):
-            return await Rclone.rc_get_result("job/status",[f"jobid={job_id}"])
+        async def batch_job_status(jobs):
+            batch_jobs = []
+
+            for job in jobs:
+                params = {
+                    "_path": "job/status",
+                    "jobid": job
+                }
+
+                batch_jobs.append(params)
+
+            batch_json = json.dumps({"inputs": batch_jobs})
+
+            return (await Rclone.rc_get_result("job/batch", ["--json", batch_json]))["results"]
         
         await decky.emit("progress_event", None, None, "Task still in progress")
 
@@ -339,7 +351,7 @@ class Plugin:
         decky.logger.info("Beginning check loop")
         active_jobs = (await get_jobs())["runningIds"]
 
-        all_job_progress = await asyncio.gather(*(get_job_progress(job) for job in active_jobs))
+        all_job_progress = await batch_job_status(active_jobs)
 
         all_jobs_finished = len(active_jobs) == 0 or all(job["finished"] is True for job in all_job_progress if "job/" not in job["group"])
 
@@ -350,7 +362,7 @@ class Plugin:
 
         while all_jobs_finished is False:
             active_jobs = (await get_jobs())["runningIds"]
-            all_job_progress = await asyncio.gather(*(get_job_progress(job) for job in active_jobs))
+            all_job_progress = await batch_job_status(active_jobs)
             all_jobs_finished = len(active_jobs) == 0 or all(job["finished"] == True for job in all_job_progress if "job/" not in job["group"])
 
             if all_jobs_finished: break
@@ -365,7 +377,7 @@ class Plugin:
             await asyncio.sleep(1)
         
         finished_job_ids = (await get_jobs())["finishedIds"]
-        finished_jobs = await asyncio.gather(*(get_job_progress(job) for job in finished_job_ids))
+        finished_jobs = await batch_job_status(finished_job_ids)
         failed_jobs = [job for job in finished_jobs if job is not None and job.get("success") is not True and "job/" not in job.get("group")]
 
         if len(failed_jobs) > 0:
