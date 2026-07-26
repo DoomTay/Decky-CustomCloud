@@ -250,6 +250,9 @@ class Plugin:
 
         with open(os.path.join(log_dir,log_files[log_index]),"r") as file:
             return file.read()
+
+    async def rclone_kill_rcd(self):
+        await Rclone.stop_rcd()
             
     async def get_current_app_id(self):
         return self.current_app_id
@@ -388,7 +391,7 @@ class Plugin:
 
         decky.logger.info("Cloud sync complete")
         self.status = "idle"
-        await asyncio.create_subprocess_exec(rclone_path, "rc", "core/quit")
+        await self.rclone_kill_rcd()
     
     # Migrations that should be performed before entering `_main()`.
     async def _migration(self):

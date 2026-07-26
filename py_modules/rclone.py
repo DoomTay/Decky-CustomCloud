@@ -14,22 +14,26 @@ class Rclone:
     async def start_rcd(cls,app_id):
         timestamp = datetime.now().strftime('%Y-%m-%d %H.%M.%S')
 
-        await asyncio.create_subprocess_exec(rclone_path, "rcd", "--rc-no-auth", "--config", os.path.join(os.environ["DECKY_PLUGIN_SETTINGS_DIR"],"rclone.conf"), "-vv", f"--log-file={os.path.join(log_dir, f'rclone-{app_id}-{timestamp}.log')}")
-        await asyncio.sleep(1)
+        rcd_start = await asyncio.create_subprocess_exec(rclone_path, "rcd", "--rc-no-auth", "--config", os.path.join(os.environ["DECKY_PLUGIN_SETTINGS_DIR"],"rclone.conf"), "-vv", f"--log-file={os.path.join(log_dir, f'rclone-{app_id}-{timestamp}.log')}")
+        await rcd_start.wait()
+    
+    @classmethod
+    async def stop_rcd(cls):
+        await cls.rc_command("core/quit")
 
     @classmethod
-    async def rc_get_result(self,command,args=[]):
+    async def rc_get_result(cls,command,args=[]):
         rc_command = await asyncio.create_subprocess_exec(rclone_path, "rc", command, *args, stdout=asyncio.subprocess.PIPE)
         stdout, _ = await rc_command.communicate()
 
         return json.loads(stdout.decode())
 
     @classmethod
-    async def rc_command(self,command,args=[]):
+    async def rc_command(cls,command,args=[]):
         return await asyncio.create_subprocess_exec(rclone_path, "rc", command, *args)
 
     @classmethod
-    async def push_paths(self,paths,game_backup_path,folder_prefix,get_excludes_function=None):
+    async def push_paths(cls,paths,game_backup_path,folder_prefix,get_excludes_function=None):
         async def process_single_path(i,path):
             full_target_path = f"{game_backup_path}/{folder_prefix}-{i}"
 
@@ -50,7 +54,7 @@ class Rclone:
                     "IncludeRule": [f"{filter}"],
                 })
 
-                copy_job = await self.rc_command("sync/sync", [f"srcFs={base_path}", f"dstFs=customcloud-remote:{full_target_path}", f"_filter={filter_json}", f"_group=customcloud_upload"])
+                copy_job = await cls.rc_command("sync/sync", [f"srcFs={base_path}", f"dstFs=customcloud-remote:{full_target_path}", f"_filter={filter_json}", f"_group=customcloud_upload"])
 
             else:
                 excludes = get_excludes_function(path["path"]) if get_excludes_function else []
@@ -66,7 +70,7 @@ class Rclone:
 
                     args.extend([f"_group=customcloud_upload"])
 
-                    copy_job = await self.rc_command("sync/sync", args)
+                    copy_job = await cls.rc_command("sync/sync", args)
                 else:
                     _, filename = os.path.split(path['path'])
 
@@ -77,7 +81,7 @@ class Rclone:
 
                     args.extend([f"_group=customcloud_upload"])
 
-                    copy_job = await self.rc_command("operations/copyfile", args)
+                    copy_job = await cls.rc_command("operations/copyfile", args)
 
             await copy_job.wait()
 
@@ -90,7 +94,7 @@ class Rclone:
                 drive, srcRemote = os.path.splitdrive(marker_file.name)
                 srcRemote = srcRemote.lstrip(r'\/').replace('\\', '/')
 
-                marker_job = await self.rc_command("operations/copyfile", [f"srcFs={drive if drive else '/'}",  f"srcRemote={srcRemote}", "dstFs=customcloud-remote:", f"dstRemote={full_target_path}/.original-path", f"_group=customcloud_rcat"])
+                marker_job = await cls.rc_command("operations/copyfile", [f"srcFs={drive if drive else '/'}",  f"srcRemote={srcRemote}", "dstFs=customcloud-remote:", f"dstRemote={full_target_path}/.original-path", f"_group=customcloud_rcat"])
 
                 await marker_job.wait()
 
@@ -106,8 +110,8 @@ class Rclone:
         await asyncio.gather(*tasks)
 
     @classmethod
-    async def pull_paths(self,game_backup_path,folder_prefix,exclude_prefix=None):
-        folder_list = (await self.rc_get_result("operations/list",[f"fs=customcloud-remote:", f"remote={game_backup_path}", f"_group=customcloud_list"]))["list"]
+    async def pull_paths(cls,game_backup_path,folder_prefix,exclude_prefix=None):
+        folder_list = (await cls.rc_get_result("operations/list",[f"fs=customcloud-remote:", f"remote={game_backup_path}", f"_group=customcloud_list"]))["list"]
 
         folders_to_pull = [folder for folder in folder_list if folder["Name"].startswith(f"{folder_prefix}-")]
 
@@ -116,7 +120,7 @@ class Rclone:
                 drive, dstRemote = os.path.splitdrive(marker_dir)
                 dstRemote = dstRemote.lstrip(r'\/').replace('\\', '/')
 
-                marker_job = await self.rc_command("operations/copyfile", ["srcFs=customcloud-remote:",  f"srcRemote={folder['Path']}/.original-path", f"dstFs={drive if drive else '/'}", f"dstRemote={dstRemote}/.original-path", f"_group=customcloud_cat"])
+                marker_job = await cls.rc_command("operations/copyfile", ["srcFs=customcloud-remote:",  f"srcRemote={folder['Path']}/.original-path", f"dstFs={drive if drive else '/'}", f"dstRemote={dstRemote}/.original-path", f"_group=customcloud_cat"])
 
                 await marker_job.wait()
 
@@ -154,7 +158,7 @@ class Rclone:
 
                 filter_json=json.dumps(filter_rules)
 
-                await self.rc_command("sync/sync", [f"srcFs=customcloud-remote:{folder['Path']}", f"dstFs={base_path}", f"_filter={filter_json}", f"_config={config_json}", f"_group=customcloud_download"])
+                await cls.rc_command("sync/sync", [f"srcFs=customcloud-remote:{folder['Path']}", f"dstFs={base_path}", f"_filter={filter_json}", f"_config={config_json}", f"_group=customcloud_download"])
             else:
                 if os.path.isdir(original_path):
                     args = [f"srcFs=customcloud-remote:{folder['Path']}", f"dstFs={original_path}"]
@@ -186,7 +190,7 @@ class Rclone:
 
                             batch_json = json.dumps({"inputs": batch_jobs, "_group": f"customcloud_depth_check"})
 
-                            depth_check_result = (await self.rc_get_result("job/batch", ["--json", batch_json]))["results"]
+                            depth_check_result = (await cls.rc_get_result("job/batch", ["--json", batch_json]))["results"]
 
                             cutoff_index, _ = next((i,depth) for i,depth in enumerate(depth_check_result) if depth.get("status") == 404 or len(depth.get("list",[])) == 0)
                             cutoff_point = path_depths[cutoff_index]
@@ -199,7 +203,7 @@ class Rclone:
 
                     args.extend([f"_filter={filter_json}", f"_config={config_json}", f"_group=customcloud_download"])
 
-                    await self.rc_command("sync/sync", args)
+                    await cls.rc_command("sync/sync", args)
                 else:
                     _, filename = os.path.split(original_path)
 
@@ -211,7 +215,7 @@ class Rclone:
 
                     args.extend([f"_filter={filter_json}", f"_config={config_json}", f"_group=customcloud_download"])
 
-                    await self.rc_command("operations/copyfile", args)
+                    await cls.rc_command("operations/copyfile", args)
         tasks = [pull_folder(folder) for folder in folders_to_pull]
 
         await asyncio.gather(*tasks)
