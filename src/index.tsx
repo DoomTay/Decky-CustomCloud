@@ -58,6 +58,7 @@ function Content() {
           onClick={async () => {
             showModal(
             <ConfirmModal
+              <ConfirmModal
                 strTitle="Cloud directory"
                 strDescription={
                 <TextField 
@@ -85,7 +86,12 @@ function Content() {
                     )
                 }}
                 strMiddleButtonText="Reset to default"
+                >
+                <TextField 
+                  defaultValue={cloudDirectory}
+                  onChange={(e) => {tempCloudDirectory.current = e.target.value}}
                 />
+              </ConfirmModal>
             )
           }}
         >
@@ -190,7 +196,7 @@ function Content() {
             }
           }}
         >
-          {"Update Rclone"}
+          {downloadingRclone ? "Updating Rclone" : "Update Rclone" }
         </ButtonItem>
       </PanelSectionRow>
     </PanelSection>
