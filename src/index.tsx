@@ -57,15 +57,8 @@ function Content() {
           layout="below"
           onClick={async () => {
             showModal(
-            <ConfirmModal
               <ConfirmModal
                 strTitle="Cloud directory"
-                strDescription={
-                <TextField 
-                  defaultValue={cloudDirectory}
-                  onChange={(e) => {tempCloudDirectory.current = e.target.value}}
-                  />
-                }
                 onOK={async () => {
                   setCloudDirectory(tempCloudDirectory.current)
 
