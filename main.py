@@ -252,6 +252,8 @@ class Plugin:
         if result.strip() == "": result = "null"
 
         decky.logger.info(f"Preparing to continue with state {state} and result {result}")
+        
+        if result.strip() == "": result = "null"
 
         config_continue = await asyncio.create_subprocess_exec(rclone_path, "config", "create", "customcloud-test-remote", remote, "--config", os.path.join(os.environ["DECKY_PLUGIN_SETTINGS_DIR"],"rclone-experimental.conf"), "-vv", "--non-interactive", "--continue", "--state", state, "--result", result, stdout=asyncio.subprocess.PIPE,stderr=asyncio.subprocess.PIPE)
 

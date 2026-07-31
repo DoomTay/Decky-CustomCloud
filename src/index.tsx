@@ -114,7 +114,7 @@ function Content() {
 
               let errorMessage = promptData["Error"];
 
-              if(errorMessage != "") return alertModal(errorMessage,"Warning");
+              if(errorMessage != "") return alertModal(errorMessage,"Warning",false,promptData["State"],promptData["Result"]);
 
               let modal;
               let modalTitle = "Rclone Config";
@@ -199,6 +199,8 @@ function Content() {
                     checked={customInputEnabled}
                     onChange={(checked) => {
                       setCustomInputEnabled(checked);
+
+                      if(checked) configTextPrompt.current = optionData["DefaultStr"];
                     }}
                     />}
                     </ConfirmModal>
@@ -208,7 +210,6 @@ function Content() {
                   modal = <ConfigStringSelect
                           onOK={async (result) => {
                               setConfigLoading(true);
-                              console.log("Preparing to send " + result + " to state " + promptData["State"])
                               call<[remote: string, state: string, result: string], any>("rclone_config_continue",selectedRemote,promptData["State"],result);
                             }}
                             onCancel={async () => {
@@ -217,8 +218,7 @@ function Content() {
                           />
                   break;
                 case "web":
-                  modal = alertModal("You will now be redirected to a web browser to complete authentication",modalTitle,false)
-                  //modal = null;
+                  modal = null;
 
                   Navigation.NavigateToExternalWeb(optionData["Value"]);
                   break;
@@ -239,7 +239,7 @@ function Content() {
               </ModalRoot>
             )
 
-            function alertModal(message: string,title: string,finalEvent?: boolean)
+            function alertModal(message: string,title: string,finalEvent?: boolean,state?: string, result?: string)
             {
               return <ConfirmModal
                 bAlertDialog={true}
@@ -248,10 +248,8 @@ function Content() {
                 onOK={async () => {
                   configModal.Close()
 
-                  if(finalEvent)
-                  {
-                    removeEventListener('config_event', handlePrompt);
-                  }
+                  if(finalEvent) removeEventListener('config_event', handlePrompt);
+                  else if(state) call<[remote: string, state?: string, result?: string], any>("rclone_config_continue",selectedRemote,state,result);
                 }}
                 onCancel={() => {}}
                 />
