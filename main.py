@@ -236,6 +236,77 @@ class Plugin:
         self.app_settings.setSetting(key, value)
         self.app_settings.commit()
 
+    async def rclone_config(self, remote):
+        config_init = await asyncio.create_subprocess_exec(rclone_path, "config", "create", "customcloud-test-remote", remote, "--config", os.path.join(os.environ["DECKY_PLUGIN_SETTINGS_DIR"],"rclone-experimental.conf"), "-vv", "--non-interactive", stdout=asyncio.subprocess.PIPE)
+        stdout, _ = await config_init.communicate()
+        
+        await decky.emit("config_event", json.loads(stdout.decode()))
+
+    async def rclone_get_backends(self):
+        config_init = await asyncio.create_subprocess_exec(rclone_path, "config", "providers", stdout=asyncio.subprocess.PIPE)
+        stdout, _ = await config_init.communicate()
+
+        return json.loads(stdout.decode())
+
+    async def rclone_config_continue(self,remote,state,result):
+        if result.strip() == "": result = "null"
+
+        decky.logger.info(f"Preparing to continue with state {state} and result {result}")
+
+        config_continue = await asyncio.create_subprocess_exec(rclone_path, "config", "create", "customcloud-test-remote", remote, "--config", os.path.join(os.environ["DECKY_PLUGIN_SETTINGS_DIR"],"rclone-experimental.conf"), "-vv", "--non-interactive", "--continue", "--state", state, "--result", result, stdout=asyncio.subprocess.PIPE,stderr=asyncio.subprocess.PIPE)
+
+        # stdout, stderr = await config_continue.communicate()
+
+        async def read_stream(stream,catch_regex=None):
+            output = ""
+            found_match = None
+
+            while True:
+                line = await stream.readline()
+                if not line: break
+
+                output += line.decode()
+
+                if catch_regex:
+                    stream_match = re.search(catch_regex, output)
+                    
+                    if stream_match:
+                        found_match = stream_match.group()
+                        decky.logger.info(f"Found match: {found_match}")
+                        
+                        break
+
+
+            return output, found_match
+        
+        stdout_task = asyncio.create_task(read_stream(config_continue.stdout))
+        stderr_task = asyncio.create_task(read_stream(config_continue.stderr,r"(https?://127\.0\.0\.1:\d+/auth\?state=\S+)"))
+
+        _, oauth_url = await stderr_task
+
+        if oauth_url:
+            fake_web_event = {
+                "Error": "",
+                "State": state,
+                "Option":
+                    {
+                        "Type": "web",
+                        "Value": oauth_url,
+                        "OriginalResult": result
+                    }
+            }
+
+            await decky.emit("config_event", fake_web_event)
+
+        decky.logger.info(f"Current state: {state}")
+        decky.logger.info(f"Found url: {oauth_url}")
+        
+        stdout, _ = await stdout_task
+
+        decky.logger.info(f"Stdout output: {stdout}")
+        decoded = json.loads(stdout)
+        await decky.emit("config_event", decoded)
+
     async def get_rclone_log(self):
         no_log_file = "No log file available"
         if not getattr(self, "current_app_id", None): return no_log_file
