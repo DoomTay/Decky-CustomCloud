@@ -238,29 +238,16 @@ class Plugin:
         self.app_settings.setSetting(key, value)
         self.app_settings.commit()
 
-    async def rclone_config(self, remote):
-        config_init = await asyncio.create_subprocess_exec(rclone_path, "config", "create", "customcloud-test-remote", remote, "--config", os.path.join(os.environ["DECKY_PLUGIN_SETTINGS_DIR"],"rclone-experimental.conf"), "-vv", "--non-interactive", stdout=asyncio.subprocess.PIPE)
-        stdout, _ = await config_init.communicate()
+    async def rclone_config(self, remote,state=None,result=None):
+        config_params = [rclone_path, "config", "create", "customcloud-remote", remote, "config_is_local", "true", "--config", os.path.join(os.environ["DECKY_PLUGIN_SETTINGS_DIR"],"rclone.conf"), "-vv", "--non-interactive"]
+
+        if state is not None and result is not None:
+            if result.strip() == "": result = "null"
+
+            config_params.extend([ "--continue", "--state", state, "--result", result])
+
+        config_init = await asyncio.create_subprocess_exec(*config_params, stdout=asyncio.subprocess.PIPE,stderr=asyncio.subprocess.PIPE)
         
-        await decky.emit("config_event", json.loads(stdout.decode()))
-
-    async def rclone_get_backends(self):
-        config_init = await asyncio.create_subprocess_exec(rclone_path, "config", "providers", stdout=asyncio.subprocess.PIPE)
-        stdout, _ = await config_init.communicate()
-
-        return json.loads(stdout.decode())
-
-    async def rclone_config_continue(self,remote,state,result):
-        if result.strip() == "": result = "null"
-
-        decky.logger.info(f"Preparing to continue with state {state} and result {result}")
-        
-        if result.strip() == "": result = "null"
-
-        config_continue = await asyncio.create_subprocess_exec(rclone_path, "config", "create", "customcloud-test-remote", remote, "--config", os.path.join(os.environ["DECKY_PLUGIN_SETTINGS_DIR"],"rclone-experimental.conf"), "-vv", "--non-interactive", "--continue", "--state", state, "--result", result, stdout=asyncio.subprocess.PIPE,stderr=asyncio.subprocess.PIPE)
-
-        # stdout, stderr = await config_continue.communicate()
-
         async def read_stream(stream,catch_regex=None):
             output = ""
             found_match = None
@@ -283,34 +270,36 @@ class Plugin:
 
             return output, found_match
         
-        stdout_task = asyncio.create_task(read_stream(config_continue.stdout))
-        stderr_task = asyncio.create_task(read_stream(config_continue.stderr,r"(https?://127\.0\.0\.1:\d+/auth\?state=\S+)"))
+        stdout_task = asyncio.create_task(read_stream(config_init.stdout))
+        stderr_task = asyncio.create_task(read_stream(config_init.stderr,r"(https?://127\.0\.0\.1:\d+/auth\?state=\S+)"))
 
         _, oauth_url = await stderr_task
 
         if oauth_url:
             fake_web_event = {
                 "Error": "",
-                "State": state,
                 "Option":
                     {
                         "Type": "web",
                         "Value": oauth_url,
-                        "OriginalResult": result
                     }
             }
 
             await decky.emit("config_event", fake_web_event)
 
-        decky.logger.info(f"Current state: {state}")
         decky.logger.info(f"Found url: {oauth_url}")
         
         stdout, _ = await stdout_task
 
-        decky.logger.info(f"Stdout output: {stdout}")
         decoded = json.loads(stdout)
         await decky.emit("config_event", decoded)
 
+    async def rclone_get_backends(self):
+        config_init = await asyncio.create_subprocess_exec(rclone_path, "config", "providers", stdout=asyncio.subprocess.PIPE)
+        stdout, _ = await config_init.communicate()
+
+        return json.loads(stdout.decode())
+    
     async def get_rclone_log(self):
         no_log_file = "No log file available"
         if not getattr(self, "current_app_id", None): return no_log_file
