@@ -1,4 +1,4 @@
-import { call } from "@decky/api";
+import { call, FileSelectionType, openFilePicker } from "@decky/api";
 import {
   DialogBody,
   DialogControlsSection,
@@ -9,6 +9,7 @@ import {
   ConfirmModal,
   ButtonItem,
   SteamSpinner,
+  Field,
 } from "@decky/ui";
 import { FaPlus, FaTrash } from "react-icons/fa";
 import { Fragment } from "react/jsx-runtime";
@@ -29,17 +30,22 @@ function GamePathField({value, disabled, onChange}: GamePathFieldProps)
     return (
     <Fragment>
         <div
-            style=
-            {{
-                display: "grid",
-                gridTemplateColumns: "2fr 160px",
-                gap: "8px"
-            }}
-        >
+        style=
+        {{
+            display: "grid",
+            gridTemplateColumns: "2fr 160px",
+            gap: "8px"
+        }}>
         <TextField
-        defaultValue={value.path}
+        value={value.path}
         disabled={disabled}
-        onChange={(e) => onChange({...value, path: e.target.value})} />
+        onClick={async () => {
+            let startingPath = value.path.replace(/\\/g,"/");
+
+            let newPath = await openFilePicker(FileSelectionType.FILE,startingPath);
+
+            onChange({...value, path: newPath.path});
+        }} />
         <Dropdown
         rgOptions= {[{data: "configsave", label: "Config + Save"},
             {data: "config", label: "Config"},
@@ -81,7 +87,6 @@ export default function GamePaths({paths, setGamePaths, loadingPaths, setLoading
             onOK={() => setGamePaths(paths.filter((_, index) => index != indexToRemove))}
             />
         )
-
     }
 
     if(loadingPaths) return <SteamSpinner />
@@ -133,19 +138,20 @@ export default function GamePaths({paths, setGamePaths, loadingPaths, setLoading
         )
         ))}
         <div
-            style=
-            {{
-                display: "grid",
-                gridTemplateColumns: "1fr 45px",
-                gap: "8px"
-            }}
-        >
-        <div>
-        <TextField
-        label="Game Folder Name"
-        defaultValue={cloudGameFolder}
-        onChange={(e) => setCloudGameFolder(e.target.value)} />
-        </div>
+        style=
+        {{
+            display: "grid",
+            gridTemplateColumns: "1fr 45px",
+            gap: "8px"
+        }}>
+        <Field label="Cloud game folder">
+            <TextField
+                value={cloudGameFolder}
+                style={{
+                    width: "300px"
+                }}
+                onChange={(e) => setCloudGameFolder(e.target.value)} />
+        </Field>
         <DialogButton
         onClick={addPath}
         disabled={!appIsInstalled}
@@ -169,8 +175,9 @@ export default function GamePaths({paths, setGamePaths, loadingPaths, setLoading
                 bDestructiveWarning={true}
                 onOK={async () => {
                     setLoadingPaths(true);
-                    call<[], GamePathSetting[]>("set_default_paths").then((defaultPaths) => {
-                        setGamePaths(defaultPaths);
+                    call<[], any>("set_default_paths").then((defaultSettings) => {
+                        setGamePaths(defaultSettings.paths);
+                        setCloudGameFolder(defaultSettings.folder)
                         setLoadingPaths(false);
                     });
                 }}

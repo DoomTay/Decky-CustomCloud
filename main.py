@@ -162,7 +162,9 @@ class Plugin:
 
             parsed_entry = yaml.safe_load(possible_entry)
 
-            self.app_settings.setSetting("game_folder", re.sub(r'[<>:\"\/\|\?*]', '', next(iter(parsed_entry.keys()))))
+            default_game_folder = re.sub(r'[<>:\"\/\|\?*]', '', next(iter(parsed_entry.keys())))
+
+            self.app_settings.setSetting("game_folder", default_game_folder)
                 
             found_entry = next(iter(parsed_entry.values()))
             
@@ -195,7 +197,7 @@ class Plugin:
         self.app_settings.setSetting("paths", default_paths)
         self.app_settings.commit()
 
-        return self.app_settings.getSetting("paths")
+        return {"paths": default_paths, "folder": default_game_folder}
 
     async def get_global_setting(self, key):
         if not self.global_settings: return
