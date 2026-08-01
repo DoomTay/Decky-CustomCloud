@@ -14,8 +14,9 @@ class Rclone:
     async def start_rcd(cls,app_id):
         timestamp = datetime.now().strftime('%Y-%m-%d %H.%M.%S')
 
-        rcd_start = await asyncio.create_subprocess_exec(rclone_path, "rcd", "--rc-no-auth", "--config", os.path.join(os.environ["DECKY_PLUGIN_SETTINGS_DIR"],"rclone.conf"), "-vv", f"--log-file={os.path.join(log_dir, f'rclone-{app_id}-{timestamp}.log')}")
-        await rcd_start.wait()
+        await asyncio.create_subprocess_exec(rclone_path, "rcd", "--rc-no-auth", "--config", os.path.join(os.environ["DECKY_PLUGIN_SETTINGS_DIR"],"rclone.conf"), "-vv", f"--log-file={os.path.join(log_dir, f'rclone-{app_id}-{timestamp}.log')}")
+
+        await asyncio.sleep(1)
     
     @classmethod
     async def stop_rcd(cls):
