@@ -74,12 +74,10 @@ export default async function startConfigWizard()
             strOKButtonText={yesOption["Help"]}
             strCancelButtonText={noOption["Help"]}
             onOK={async () => {
-                wizardModal.Update(loadingModal);
-                call<[remote: string, state: string, result: string], any>("rclone_config",selectedRemote,promptData["State"],yesOption["Value"]);
+                nextStep(promptData["State"],yesOption["Value"]);
             }}
             onCancel={async () => {
-                wizardModal.Update(loadingModal);
-                call<[remote: string, state: string, result: string], any>("rclone_config",selectedRemote,promptData["State"],noOption["Value"]);
+                nextStep(promptData["State"],noOption["Value"]);
             }}
             />)
             break;
@@ -88,8 +86,7 @@ export default async function startConfigWizard()
             modal = <WizardStringSelect
                     optionData={optionData}
                     onOK={async (result) => {
-                        wizardModal.Update(loadingModal);
-                        call<[remote: string, state: string, result: string], any>("rclone_config",selectedRemote,promptData["State"],result);
+                        nextStep(promptData["State"],result);
                     }}
                     onCancel={async () => {
                         wizardModal.Update(alertModal("Configuration has been cancelled.",modalTitle,true));
@@ -129,7 +126,7 @@ export default async function startConfigWizard()
             wizardModal.Close()
 
             if(finalEvent) removeEventListener('config_event', handlePrompt);
-            else if(state) call<[remote: string, state?: string, result?: string], any>("rclone_config",selectedRemote,state,result);
+            else if(state) nextStep(state,result);
         }}
         onCancel={() => {}}
         />
@@ -170,7 +167,7 @@ export default async function startConfigWizard()
         onOK={() => {
             addEventListener('config_event', handlePrompt);
 
-            call<[remote: string], any>("rclone_config",selectedRemote);
+            nextStep();
         }}
         onCancel={() => {
             wizardModal.Close();
@@ -186,6 +183,13 @@ export default async function startConfigWizard()
 
         wizardModal.Update(backendSelectionModal);
     }
+
+    function nextStep(state?: string, result?: string)
+    {
+        wizardModal.Update(loadingModal);
+        call<[remote: string, state?: string, result?: string], any>("rclone_config",selectedRemote,state,result);
+    }
+
 }
 
 interface WizardStringSelectProps {
