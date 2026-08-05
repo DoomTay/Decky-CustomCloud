@@ -13,6 +13,7 @@ import {
 } from "@decky/ui";
 import { FaPlus, FaTrash } from "react-icons/fa";
 import { Fragment } from "react/jsx-runtime";
+import { InitialSettings, setSetting } from "./customcloud-config";
 
 export interface GamePathSetting {
     path: string,
@@ -62,19 +63,26 @@ function GamePathField({value, disabled, onChange}: GamePathFieldProps)
 }
 
 interface GamePathsProps {
-    paths: GamePathSetting[],
-    setGamePaths: React.Dispatch<React.SetStateAction<GamePathSetting[]>>,
+    initialSettings: InitialSettings,
+    setInitialSettings: React.Dispatch<React.SetStateAction<InitialSettings>>,
     loadingPaths: boolean,
     setLoadingPaths: React.Dispatch<React.SetStateAction<boolean>>,
-    cloudGameFolder: string,
-    setCloudGameFolder: React.Dispatch<React.SetStateAction<string>>,
     appIsInstalled: boolean
 }
 
-export default function GamePaths({paths, setGamePaths, loadingPaths, setLoadingPaths, cloudGameFolder, setCloudGameFolder, appIsInstalled}: GamePathsProps) {
+export default function GamePaths({initialSettings, setInitialSettings, loadingPaths, setLoadingPaths, appIsInstalled}: GamePathsProps) {
+    const gamePaths: GamePathSetting[] = initialSettings["paths"];
+
     function addPath()
     {
-        setGamePaths([...paths, {path: "", type: "configsave"}]);
+        setGamePaths([...gamePaths, {path: "", type: "configsave"}]);
+    }
+
+    function setGamePaths(newPaths: GamePathSetting[])
+    {
+        setInitialSettings({...initialSettings, "paths": newPaths});
+
+        setSetting("paths", newPaths);
     }
 
     function deletePath(indexToRemove: number)
@@ -84,7 +92,7 @@ export default function GamePaths({paths, setGamePaths, loadingPaths, setLoading
             strTitle="Warning"
             strDescription="Delete this path?"
             bDestructiveWarning={true}
-            onOK={() => setGamePaths(paths.filter((_, index) => index != indexToRemove))}
+            onOK={() => setGamePaths(gamePaths.filter((_, index) => index != indexToRemove))}
             />
         )
     }
@@ -94,8 +102,8 @@ export default function GamePaths({paths, setGamePaths, loadingPaths, setLoading
     return (
     <DialogBody>
         <DialogControlsSection>
-        {paths.map((path, index) => (
-        paths.length > 1 ? (
+        {gamePaths.map((path, index) => (
+        gamePaths.length > 1 ? (
         <div
             style=
             {{
@@ -108,9 +116,7 @@ export default function GamePaths({paths, setGamePaths, loadingPaths, setLoading
         value={path}
         disabled={!appIsInstalled}
         onChange={(newPath) => {
-                setGamePaths((prevPaths) => 
-                    prevPaths.map((p, i) => (i === index ? newPath : p))
-                );
+                setGamePaths(gamePaths.map((p, i) => (i === index ? newPath : p)));
             }
         } />
         <DialogButton
@@ -130,9 +136,7 @@ export default function GamePaths({paths, setGamePaths, loadingPaths, setLoading
         value={path}
         disabled={!appIsInstalled}
         onChange={(newPath) => {
-                setGamePaths((prevPaths) => 
-                    prevPaths.map((p, i) => (i === index ? newPath : p))
-                );
+                setGamePaths(gamePaths.map((p, i) => (i === index ? newPath : p)));
             }
         } />
         )
@@ -146,11 +150,14 @@ export default function GamePaths({paths, setGamePaths, loadingPaths, setLoading
         }}>
         <Field label="Cloud game folder">
             <TextField
-                value={cloudGameFolder}
+                value={initialSettings["game_folder"]}
                 style={{
                     width: "300px"
                 }}
-                onChange={(e) => setCloudGameFolder(e.target.value)} />
+                onChange={(e) => {
+                    setSetting("game_folder", e.target.value);
+                    setInitialSettings({...initialSettings, "game_folder": e.target.value});
+                    }} />
         </Field>
         <DialogButton
         onClick={addPath}
@@ -177,7 +184,8 @@ export default function GamePaths({paths, setGamePaths, loadingPaths, setLoading
                     setLoadingPaths(true);
                     call<[], any>("set_default_paths").then((defaultSettings) => {
                         setGamePaths(defaultSettings.paths);
-                        setCloudGameFolder(defaultSettings.folder)
+                        setSetting("game_folder", defaultSettings.folder);
+                        setInitialSettings({...initialSettings, "game_folder": defaultSettings.folder});
                         setLoadingPaths(false);
                     });
                 }}
@@ -187,6 +195,7 @@ export default function GamePaths({paths, setGamePaths, loadingPaths, setLoading
         disabled={!appIsInstalled}>
             Reset paths
         </ButtonItem>
+        <div>Game {appIsInstalled ? "is" : "is not"} installed</div>
     </DialogBody>
     );
 }

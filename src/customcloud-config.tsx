@@ -19,28 +19,32 @@ import { FaCloudUploadAlt, FaCloudDownloadAlt, FaCog, FaSlash, FaFileAlt } from 
 import GamePaths, { GamePathSetting } from "./customcloud-gamepaths";
 import LogView from "./customcloud-logview";
 
-interface ConfigContentProps {
-    selectedGame: SingleDropdownOption | null,
-    appIsInstalled: boolean,
-    setSelectedGame: React.Dispatch<React.SetStateAction<SingleDropdownOption | null>>,
-    setAppIsInstalled: React.Dispatch<React.SetStateAction<boolean>>,
-    setGamePaths: React.Dispatch<React.SetStateAction<GamePathSetting[]>>,
-    setLoadingPaths: React.Dispatch<React.SetStateAction<boolean>>,
-    setCloudGameFolder: React.Dispatch<React.SetStateAction<string>>
+export interface InitialSettings {
+    "sync_config_after_game": boolean,
+    "sync_config_before_game": boolean,
+    "sync_save_after_game": boolean,
+    "sync_save_before_game": boolean,
+    "paths": GamePathSetting[],
+    "game_folder": string
 }
 
-function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsInstalled, setGamePaths, setLoadingPaths, setCloudGameFolder}: ConfigContentProps)
+interface GameSettingsProps {
+    selectedGame: number | null,
+    gameDetails: AppDetails | null,
+    initialSettings: InitialSettings,
+    setInitialSettings: React.Dispatch<React.SetStateAction<InitialSettings>>,
+    setSelectedGame: React.Dispatch<React.SetStateAction<number | null>>,
+}
+
+function GameSettings({selectedGame, gameDetails, initialSettings, setInitialSettings, setSelectedGame}: GameSettingsProps)
 {
-    const [rcloneStatus, setRcloneStatus] = useState("idle");
+    const [rcloneStatus, setRcloneStatus] = useState<string>("idle");
     const [rcloneProgress, setRcloneProgress] = useState<number | undefined>();
     const [rcloneEta, setRcloneEta] = useState<number>(0);
-    const [gameInfoText, setGameInfoText] = useState<any | undefined>();
-    const [cloudUploadConfigEnabled, setCloudUploadConfigEnabled] = useState(true);
-    const [cloudDownloadConfigEnabled, setCloudDownloadConfigEnabled] = useState(true);
-    const [cloudUploadSaveEnabled, setCloudUploadSaveEnabled] = useState(true);
-    const [cloudDownloadSaveEnabled, setCloudDownloadSaveEnabled] = useState(true);
-    const [steamCloudEnabled, setSteamCloudEnabled] = useState(true);
     const [installedGames, setInstalledGames] = useState<SingleDropdownOption[]>([]);
+
+    const steamCloudEnabled = gameDetails?.bCloudEnabledForApp ?? true;
+    const appIsInstalled = gameDetails?.iInstallFolder != -1;
 
     const CLOUD_WARNING = "Steam Cloud is enabled for this game. Therefore, it is not recommended to have this on, as downloading from your cloud may cause interference with Steam Cloud. Enable this setting anyway?";
 
@@ -58,10 +62,15 @@ function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsI
             {data: 413410, label: "Danganronpa 1"}
         ]
         setInstalledGames(games);
-
-        setSelectedGame(games[0]);
-        updateGameInfo(games[0]);
     }
+
+    useEffect(() =>
+    {
+        if(installedGames.length == 0) return;
+
+        setSelectedGame(selectedGame || installedGames[0].data);
+
+    }, [installedGames])
 
     useEffect(() =>
     {
@@ -104,45 +113,8 @@ function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsI
         setRcloneStatus(newStatus)
     }
 
-    const updateGameInfo = async(gameSelection: SingleDropdownOption) =>
-    {
-        setSelectedGame(gameSelection);
-
-        const { unregister } = SteamClient.Apps.RegisterForAppDetails(gameSelection.data, async (details) => {
-            unregister();
-
-            setSteamCloudEnabled(details.bCloudEnabledForApp)
-            setAppIsInstalled(details.iInstallFolder != -1)
-
-            setLoadingPaths(true);
-            const newSettings = await call<[appInfo: AppDetails], any>("get_app_settings",details);
-
-            setCloudUploadConfigEnabled(newSettings['sync_config_after_game']);
-            setCloudDownloadConfigEnabled(newSettings['sync_config_before_game']);
-            setCloudUploadSaveEnabled(newSettings['sync_save_after_game']);
-            setCloudDownloadSaveEnabled(newSettings['sync_save_before_game']);
-
-            setGamePaths(newSettings['paths']);
-
-            setCloudGameFolder(newSettings['game_folder']);
-
-            setGameInfoText(details);
-
-            setLoadingPaths(false);
-        })
-    }
-
-    function setSetting(key: string, value: any)
-    {
-        call<[key: string, value: any], any>("set_app_setting",key, value);
-    }
-
     useEffect(() =>
     {
-        //const unregister = SteamClient.Apps;
-
-        if(selectedGame) updateGameInfo(selectedGame);
-
         updateRcloneStatus();
     }, [])
 
@@ -151,8 +123,8 @@ function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsI
         <DialogControlsSection>
             <Dropdown
             rgOptions={installedGames}
-            selectedOption={selectedGame?.data}
-            onChange={updateGameInfo}
+            selectedOption={selectedGame}
+            onChange={(newSelection) => setSelectedGame(newSelection.data)}
             >
             </Dropdown>
         
@@ -162,12 +134,13 @@ function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsI
         <ToggleField
             label="Push config data to cloud after ending game"
             onChange={(checked) => {
-                setCloudUploadConfigEnabled(checked);
+                setInitialSettings({...initialSettings, "sync_config_after_game": checked});
+
                 setSetting("sync_config_after_game", checked);
             }}
             disabled={!appIsInstalled}
             layout="inline"
-            checked={cloudUploadConfigEnabled}
+            checked={initialSettings['sync_config_after_game']}
         >
         </ToggleField>
         <ButtonProgressBarSwitch
@@ -190,13 +163,13 @@ function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsI
         <ToggleFieldWithWarning
             label="Pull config data from cloud when starting game"
             onChange={(checked) => {
-                setCloudDownloadConfigEnabled(checked);
+                setInitialSettings({...initialSettings, "sync_config_before_game": checked});
 
                 setSetting("sync_config_before_game", checked);
             }}
             warning={CLOUD_WARNING}
             disabled={!appIsInstalled}
-            checked={cloudDownloadConfigEnabled}
+            checked={initialSettings['sync_config_before_game']}
             isSteamCloudEnabled={steamCloudEnabled}
         />
         <ButtonProgressBarSwitch
@@ -220,12 +193,13 @@ function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsI
         <ToggleField
             label="Push save data to cloud after ending game"
             onChange={(checked) => {
-                setCloudUploadSaveEnabled(checked);
+                setInitialSettings({...initialSettings, "sync_save_after_game": checked});
+
                 setSetting("sync_save_after_game", checked);
             }}
             disabled={!appIsInstalled}
             layout="inline"
-            checked={cloudUploadSaveEnabled}
+            checked={initialSettings['sync_save_after_game']}
         >
         </ToggleField>
         <ButtonProgressBarSwitch
@@ -248,13 +222,13 @@ function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsI
         <ToggleFieldWithWarning
             label="Pull save data from cloud when starting game"
             onChange={(checked) => {
-                setCloudDownloadSaveEnabled(checked);
+                setInitialSettings({...initialSettings, "sync_save_before_game": checked});
 
                 setSetting("sync_save_before_game", checked);
             }}
             warning={CLOUD_WARNING}
             disabled={!appIsInstalled}
-            checked={cloudDownloadSaveEnabled}
+            checked={initialSettings['sync_save_before_game']}
             isSteamCloudEnabled={steamCloudEnabled}
         />
         <ButtonProgressBarSwitch
@@ -275,7 +249,7 @@ function ConfigContent({selectedGame, appIsInstalled, setSelectedGame, setAppIsI
         </DialogControlsSection>
         <PanelSectionRow>
             <pre>
-                {JSON.stringify(gameInfoText,null,"\t")}
+                {JSON.stringify(gameDetails,null,"\t")}
             </pre>
         </PanelSectionRow>
     </DialogBody>
@@ -348,57 +322,73 @@ function ToggleFieldWithWarning({label, warning, disabled, checked, onChange, is
     </ToggleField>
 }
 
+export function setSetting(key: string, value: any)
+{
+    call<[key: string, value: any], any>("set_app_setting",key, value);
+}
+
 export default function CustomCloudConfig() {
 
-    const [selectedGame, setSelectedGame] = useState<SingleDropdownOption|null>(null);
-    const [appIsInstalled, setAppIsInstalled] = useState(true);
-    const [gamePaths, setGamePaths] = useState<GamePathSetting[]>([]);
-    const [cloudGameFolder, setCloudGameFolder] = useState("");
+    const [selectedGame, setSelectedGame] = useState<number|null>(null);
+    const [gameDetails, setGameDetails] = useState<AppDetails|null>(null);
+    const [initialSettings, setInitialSettings] = useState<InitialSettings>({
+        "sync_config_after_game": true,
+        "sync_config_before_game": true,
+        "sync_save_after_game": true,
+        "sync_save_before_game": true,
+        "paths": [],
+        "game_folder": ""
+    })
     const [loadingPaths, setLoadingPaths] = useState(false);
 
+    const updateGameInfo = async(appId: number) =>
+    {
+        const { unregister } = SteamClient.Apps.RegisterForAppDetails(appId, async (details) => {
+            unregister();
+
+            setLoadingPaths(true);
+
+            let newSettings = await call<[appInfo: AppDetails], any>("get_app_settings",details);
+            setInitialSettings(newSettings);
+
+            setGameDetails(details);
+
+            setLoadingPaths(false);
+        })
+    }
+
     useEffect(() =>
     {
-        if(gamePaths.length == 0) return;
+        if(selectedGame == null) return;
 
-        call<[key: string, value: any], any>("set_app_setting","paths", gamePaths);
-    }, [gamePaths, selectedGame])
-
-    useEffect(() =>
-    {
-        if(cloudGameFolder == "") return;
-
-        call<[key: string, value: any], any>("set_app_setting","game_folder", cloudGameFolder);
-    }, [cloudGameFolder, selectedGame])
+        updateGameInfo(selectedGame);
+    }, [selectedGame])
 
     return <SidebarNavigation pages={
         [
         {
-            title: "CustomCloud Config",
+            title: "Game Settings",
             content: (
-                <ConfigContent
+                <GameSettings
                 selectedGame={selectedGame}
-                appIsInstalled={appIsInstalled}
-                setSelectedGame={setSelectedGame} 
-                setAppIsInstalled={setAppIsInstalled}
-                setGamePaths={setGamePaths}
-                setLoadingPaths={setLoadingPaths}
-                setCloudGameFolder={setCloudGameFolder} />
+                gameDetails={gameDetails}
+                initialSettings={initialSettings}
+                setInitialSettings={setInitialSettings}
+                setSelectedGame={setSelectedGame} />
             ),
             visible: true,
-            route: '/customcloud-config/config',
+            route: '/customcloud-config/settings',
             icon: <FaCog />
         },
         {
             title: "Game Paths",
             content: (
                 <GamePaths
-                paths={gamePaths}
-                setGamePaths={setGamePaths}
+                initialSettings={initialSettings}
+                setInitialSettings={setInitialSettings}
                 loadingPaths={loadingPaths}
                 setLoadingPaths={setLoadingPaths}
-                cloudGameFolder={cloudGameFolder}
-                setCloudGameFolder={setCloudGameFolder}
-                appIsInstalled={appIsInstalled} />
+                appIsInstalled={gameDetails?.iInstallFolder != -1} />
             ),
             visible: true,
             route: '/customcloud-config/gamepaths',

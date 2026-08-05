@@ -7,3 +7,5 @@ Moreover, this is meant to be used with games that do not support Steam Cloud or
 Defaults for each game are loaded from the [Ludusavi Manifest](https://github.com/mtkennerly/ludusavi-manifest) from mtkennerly. An Internet connection is required to download the manifest, at least the first time.
 
 Basic rclone configuration should be doable from the Quick Access Menu. Advanced configuration options will likely throw an error due to unknown "types". I probably wouldn't even know what to do with most of them, if the output from `rclone config providers` is anything to go by.
+
+Though this could be made to work with Windows with some tweaking, the main focus for this is for the Steam Deck. Currently, there are no means of having different OSs directly sync through this plugin. One possible workaround for Windows, if your backend supports local access, is to set up a symlink between the file/folder on the remote and the local config or save path, though admittedly this would be much harder to set up if the game saves config or save data as a bunch of files or folders in a folder alongside a bunch of other unrelated files (such as Unreal 1 or System Shock 2).

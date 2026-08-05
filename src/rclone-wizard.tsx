@@ -11,7 +11,7 @@ import {
 } from "@decky/ui";
 import { ReactNode, useRef, useState } from "react";
 
-const modalTitle = "Rclone Config Wizard";
+const MODAL_TITLE = "Rclone Config Wizard";
 
 let wizardModalOpen = false;
 
@@ -50,7 +50,7 @@ export default async function startConfigWizard()
 
         let optionData = promptData["Option"];
 
-        if(promptData["State"] == "") return alertModal("Configuration complete",modalTitle,true);
+        if(promptData["State"] == "") return alertModal("Configuration complete",MODAL_TITLE,true);
 
         let examples = optionData["Examples"];
 
@@ -61,7 +61,7 @@ export default async function startConfigWizard()
             let noOption = examples.find((option: RcloneExample) => option["Value"] == "false");
 
             modal = (<ConfirmModal
-            strTitle={modalTitle}
+            strTitle={MODAL_TITLE}
             strDescription={
                 <div style = {{
                     whiteSpace: "pre-wrap",
@@ -89,7 +89,7 @@ export default async function startConfigWizard()
                         nextStep(promptData["State"],result);
                     }}
                     onCancel={async () => {
-                        wizardModal.Update(alertModal("Configuration has been cancelled.",modalTitle,true));
+                        wizardModal.Update(alertModal("Configuration has been cancelled.",MODAL_TITLE,true));
                     }}
                     />
             break;
@@ -162,7 +162,7 @@ export default async function startConfigWizard()
         let backendOptions = (await call<[], any>("rclone_get_backends")).sort((a: any,b: any) => (a["Description"] + " (" + a["Name"] + ")").localeCompare(b["Description"] + " (" + b["Name"] + ")")).map((option: any) => ({data: option["Name"], label: option["Description"] + " (" + option["Name"] + ")"}));
 
         let backendSelectionModal = <ConfirmModal
-        strTitle={modalTitle}
+        strTitle={MODAL_TITLE}
         strDescription="Please select a backend"
         onOK={() => {
             addEventListener('config_event', handlePrompt);
@@ -208,7 +208,7 @@ function WizardStringSelect({optionData, onOK, onCancel}: WizardStringSelectProp
 
     return (
         <ConfirmModal
-        strTitle={modalTitle}
+        strTitle={MODAL_TITLE}
         strDescription={
             <div style = {{
                 whiteSpace: "pre-wrap",
