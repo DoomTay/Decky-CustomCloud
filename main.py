@@ -365,7 +365,7 @@ class Plugin:
         
         await Rclone.push_save(app_paths,base_backup_path,game_cloud_folder,push_configsaves)
 
-    async def rclone_pull_config(self):
+    async def rclone_pull_config(self,pull_configsaves):
         self.sync_progress = None
         self.status = "downloading_config"
 
@@ -376,8 +376,10 @@ class Plugin:
         base_backup_path = self.global_settings.getSetting("cloud_directory", "CustomCloud-Backup")
 
         await Rclone.pull_paths(f"{base_backup_path}/{game_cloud_folder}","config","save")
+
+        if pull_configsaves: await Rclone.pull_paths(f"{base_backup_path}/{game_cloud_folder}","configsave")
     
-    async def rclone_pull_save(self):
+    async def rclone_pull_save(self,pull_configsaves):
         self.sync_progress = None
         self.status = "downloading_save"
 
@@ -388,6 +390,8 @@ class Plugin:
         base_backup_path = self.global_settings.getSetting("cloud_directory", "CustomCloud-Backup")
         
         await Rclone.pull_paths(f"{base_backup_path}/{game_cloud_folder}","save","config")
+
+        if pull_configsaves: await Rclone.pull_paths(f"{base_backup_path}/{game_cloud_folder}","configsave")
 
     async def update_progress(self):
         async def get_progress_data():

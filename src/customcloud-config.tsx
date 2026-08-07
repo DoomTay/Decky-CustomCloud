@@ -177,7 +177,7 @@ function GameSettings({selectedGame, gameDetails, initialSettings, setInitialSet
             onClick={() => {
                 setRcloneProgress(undefined)
                 setRcloneEta(0)
-                call<[]>("rclone_pull_config");
+                call<[pull_configsaves: boolean]>("rclone_pull_config",true);
                 updateRcloneStatus();
             }}
             label="Pull from cloud"
@@ -236,7 +236,7 @@ function GameSettings({selectedGame, gameDetails, initialSettings, setInitialSet
             onClick={() => {
                 setRcloneProgress(undefined)
                 setRcloneEta(0)
-                call<[]>("rclone_pull_save");
+                call<[pull_configsaves: boolean]>("rclone_pull_save",true);
                 updateRcloneStatus();
             }}
             label="Pull from cloud"
