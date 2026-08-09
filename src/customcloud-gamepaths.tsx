@@ -42,6 +42,7 @@ function GamePathField({value, disabled, onChange}: GamePathFieldProps)
         disabled={disabled}
         onClick={async () => {
             let startingPath = value.path.replace(/\\/g,"/");
+            if(startingPath == "") startingPath = "/home/deck";
 
             let newPath = await openFilePicker(FileSelectionType.FILE,startingPath);
 
@@ -71,7 +72,7 @@ interface GamePathsProps {
 }
 
 export default function GamePaths({initialSettings, setInitialSettings, loadingPaths, setLoadingPaths, appIsInstalled}: GamePathsProps) {
-    const gamePaths: GamePathSetting[] = initialSettings["paths"];
+    const gamePaths: GamePathSetting[] = initialSettings["paths"] || [];
 
     function addPath()
     {
@@ -183,9 +184,9 @@ export default function GamePaths({initialSettings, setInitialSettings, loadingP
                 onOK={async () => {
                     setLoadingPaths(true);
                     call<[], any>("set_default_paths").then((defaultSettings) => {
-                        setGamePaths(defaultSettings.paths);
+                        setSetting("paths", defaultSettings.paths);
                         setSetting("game_folder", defaultSettings.folder);
-                        setInitialSettings({...initialSettings, "game_folder": defaultSettings.folder});
+                        setInitialSettings({...initialSettings, "paths": defaultSettings.paths, "game_folder": defaultSettings.folder});
                         setLoadingPaths(false);
                     });
                 }}
@@ -195,7 +196,6 @@ export default function GamePaths({initialSettings, setInitialSettings, loadingP
         disabled={!appIsInstalled}>
             Reset paths
         </ButtonItem>
-        <div>Game {appIsInstalled ? "is" : "is not"} installed</div>
     </DialogBody>
     );
 }

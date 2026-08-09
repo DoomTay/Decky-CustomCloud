@@ -31,12 +31,13 @@ export interface InitialSettings {
 interface GameSettingsProps {
     selectedGame: number | null,
     gameDetails: AppDetails | null,
+    appIsInstalled: boolean,
     initialSettings: InitialSettings,
     setInitialSettings: React.Dispatch<React.SetStateAction<InitialSettings>>,
     setSelectedGame: React.Dispatch<React.SetStateAction<number | null>>,
 }
 
-function GameSettings({selectedGame, gameDetails, initialSettings, setInitialSettings, setSelectedGame}: GameSettingsProps)
+function GameSettings({selectedGame, gameDetails, appIsInstalled, initialSettings, setInitialSettings, setSelectedGame}: GameSettingsProps)
 {
     const [rcloneStatus, setRcloneStatus] = useState<string>("idle");
     const [rcloneProgress, setRcloneProgress] = useState<number | undefined>();
@@ -44,7 +45,6 @@ function GameSettings({selectedGame, gameDetails, initialSettings, setInitialSet
     const [installedGames, setInstalledGames] = useState<SingleDropdownOption[]>([]);
 
     const steamCloudEnabled = gameDetails?.bCloudEnabledForApp ?? true;
-    const appIsInstalled = gameDetails?.iInstallFolder != -1;
 
     const CLOUD_WARNING = "Steam Cloud is enabled for this game. Therefore, it is not recommended to have this on, as downloading from your cloud may cause interference with Steam Cloud. Enable this setting anyway?";
 
@@ -341,6 +341,9 @@ export default function CustomCloudConfig() {
     })
     const [loadingPaths, setLoadingPaths] = useState(false);
 
+    const isAShortcut = gameDetails?.strShortcutStartDir != undefined;
+    const appIsInstalled = (!isAShortcut && gameDetails?.iInstallFolder != -1) || isAShortcut;
+
     const updateGameInfo = async(appId: number) =>
     {
         const { unregister } = SteamClient.Apps.RegisterForAppDetails(appId, async (details) => {
@@ -372,6 +375,7 @@ export default function CustomCloudConfig() {
                 <GameSettings
                 selectedGame={selectedGame}
                 gameDetails={gameDetails}
+                appIsInstalled={appIsInstalled}
                 initialSettings={initialSettings}
                 setInitialSettings={setInitialSettings}
                 setSelectedGame={setSelectedGame} />
@@ -388,7 +392,7 @@ export default function CustomCloudConfig() {
                 setInitialSettings={setInitialSettings}
                 loadingPaths={loadingPaths}
                 setLoadingPaths={setLoadingPaths}
-                appIsInstalled={gameDetails?.iInstallFolder != -1} />
+                appIsInstalled={appIsInstalled} />
             ),
             visible: true,
             route: '/customcloud-config/gamepaths',

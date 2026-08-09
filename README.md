@@ -4,7 +4,7 @@ This plugin allows for syncing your config and save data to the cloud, using rcl
 
 Moreover, this is meant to be used with games that do not support Steam Cloud or that you do not have Steam Cloud enabled for, though this plugin will allow for backing up those other games as well (though restoring from those backups might not be recommended as they may clash with Steam Cloud).
 
-Defaults for each game are loaded from the [Ludusavi Manifest](https://github.com/mtkennerly/ludusavi-manifest) from mtkennerly. An Internet connection is required to download the manifest, at least the first time.
+Defaults for each game are loaded from the [Ludusavi Manifest](https://github.com/mtkennerly/ludusavi-manifest) from mtkennerly. An Internet connection is required to download the manifest, at least the first time. It also has some support for non-Steam shortcuts, with the possible exception of handling files within the game's installation path itself. With shortcuts, it searches the manifest for the given shortcut name, though even that can fail if there isn't an exact match.
 
 Basic rclone configuration should be doable from the Quick Access Menu. Advanced configuration options will likely throw an error due to unknown "types". I probably wouldn't even know what to do with most of them, if the output from `rclone config providers` is anything to go by.
 

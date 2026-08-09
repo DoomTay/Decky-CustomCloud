@@ -18,7 +18,8 @@ import {
 import { FaCloud } from "react-icons/fa";
 import CustomCloudConfig from "./customcloud-config";
 import startConfigWizard from "./rclone-wizard";
-import { useEffect, useRef, useState } from "react";
+
+const PLUGIN_NAME = "Decky CustomCloud";
 
 const downloadManifest = callable<[], {success: boolean, status_code: number, status_text: string, error: string}>("download_ludusavi_manifest");
 const updateRclone = callable<[], {success: boolean, status_code: number, status_text: string, error: string}>("update_rclone");
@@ -108,7 +109,7 @@ function Content() {
               {
                 //All good
                 toaster.toast({
-                    title: "Decky CustomCloud",
+                    title: PLUGIN_NAME,
                     body: "Manifest download complete"
                 });
               }
@@ -116,7 +117,7 @@ function Content() {
               {
                 //Already up to date
                 toaster.toast({
-                    title: "Decky CustomCloud",
+                    title: PLUGIN_NAME,
                     body: "Manifest already up to date"
                 });
               }
@@ -124,7 +125,7 @@ function Content() {
               {
                 //We got a problem
                 toaster.toast({
-                    title: "Decky CustomCloud",
+                    title: PLUGIN_NAME,
                     body: "Manifest download error",
                     subtext: downloadResult.status_code + " " + downloadResult.status_text,
                     critical: true
@@ -140,7 +141,7 @@ function Content() {
               }
 
               toaster.toast({
-                  title: "Decky CustomCloud",
+                  title: PLUGIN_NAME,
                   body: "Manifest download error",
                   subtext: errorTable[downloadResult.error] ?? downloadResult.error,
                   critical: true
@@ -164,7 +165,7 @@ function Content() {
               {
                 //All good
                 toaster.toast({
-                    title: "Decky CustomCloud",
+                    title: PLUGIN_NAME,
                     body: "Rclone updated"
                 });
               }
@@ -172,7 +173,7 @@ function Content() {
               {
                 //We got a problem
                 toaster.toast({
-                    title: "Decky CustomCloud",
+                    title: PLUGIN_NAME,
                     body: "Rclone download error",
                     subtext: downloadResult.status_code + " " + downloadResult.status_text,
                     critical: true
@@ -188,7 +189,7 @@ function Content() {
               }
 
               toaster.toast({
-                  title: "Decky CustomCloud",
+                  title: PLUGIN_NAME,
                   body: "Rclone download error",
                   subtext: errorTable[downloadResult.error] ?? downloadResult.error,
                   critical: true
@@ -227,7 +228,7 @@ export default definePlugin(() => {
 
   return {
     // The name shown in various decky menus
-    name: "Decky CustomCloud",
+    name: PLUGIN_NAME,
     // The element displayed at the top of your plugin's menu
     titleView: <div className={staticClasses.Title}>Decky CustomCloud</div>,
     // The content of your plugin's menu

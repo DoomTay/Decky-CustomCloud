@@ -106,6 +106,7 @@ class Plugin:
             "C:/Users/<osUserName>": os.path.join(proton_prefix),
             "<winDocuments>": os.path.join(proton_prefix,"Documents"),
             "<winAppData>": os.path.join(proton_prefix,"AppData","Roaming"),
+            "<winDir>": os.path.join(steam_dir,"steamapps","compatdata",str(self.current_app_id),"pfx","drive_c","windows"),
             "<winLocalAppData>": os.path.join(proton_prefix,"AppData","Local"),
             "<xdgConfig>": os.path.join(os.environ["HOME"],".config"),
             "<xdgData>": os.path.join(os.environ["HOME"],".local", "share"),
@@ -156,21 +157,36 @@ class Plugin:
             pattern = r"^(\S.+:\n(?:^\s{1,10}.+\n?)*)"
             matches = re.findall(pattern, file_contents, flags=re.MULTILINE)
             
-            decky.logger.info(f"Manifest parsed. Finding info for app ID {self.current_app_id}")
+            decky.logger.info(f"Manifest parsed. Finding info for {self.app_name} app ID {self.current_app_id}")
 
-            possible_entry = next((game for game in matches if bool(re.search(rf"steam:\n\s+id:\s?{self.current_app_id}$", game))), None)
+            identifying_regex = rf"^\"?{self.app_name}\"?:$" if self.app_is_shortcut else rf"steam:\n\s+id:\s?{self.current_app_id}$"
 
-            parsed_entry = yaml.safe_load(possible_entry)
+            possible_entry = next((game for game in matches if bool(re.search(identifying_regex, game, flags=re.IGNORECASE))), None)
 
-            default_game_folder = re.sub(r'[<>:\"\/\|\?*]', '', next(iter(parsed_entry.keys())))
+            if(possible_entry):
+                parsed_entry = yaml.safe_load(possible_entry)
 
-            self.app_settings.setSetting("game_folder", default_game_folder)
-                
-            found_entry = next(iter(parsed_entry.values()))
+                manifest_entry = next(iter(parsed_entry.keys()))
+                default_game_folder = re.sub(r'[<>:\"\/\|\?*]', '', manifest_entry)
+
+                self.app_settings.setSetting("game_folder", default_game_folder)
+                    
+                found_entry = next(iter(parsed_entry.values()))
+            else:
+                decky.logger.info(f"Could not find entry for app ID {self.current_app_id}")
+
+                default_paths = []
+                default_game_folder = re.sub(r'[<>:\"\/\|\?*]', '', self.app_name) or f"game_{self.current_app_id}"
+
+                self.app_settings.setSetting("paths", [])
+                self.app_settings.setSetting("game_folder", default_game_folder)
+                self.app_settings.commit()
+
+                return {"paths": default_paths, "folder": default_game_folder}
             
         paths = found_entry["files"]
         
-        decky.logger.info(f"App found. Collating paths.")
+        decky.logger.info(f"App found under {manifest_entry}. Collating paths.")
 
         for possible_path,path_data in paths.items():
             resolved_path = self.resolve_path(possible_path, self.is_native_linux)
@@ -179,9 +195,11 @@ class Plugin:
                 continue
 
             if any(((when.get("os") == "linux" and self.is_native_linux) or (when.get("os") == "windows" and not self.is_native_linux) or when.get("store") == "steam") for when in path_data["when"]):
-                stores = [when.get("store") for when in path_data["when"] if "store" in when]
-                
-                if stores and "steam" not in stores:
+                whens = path_data["when"]
+                store_agnostic = any(not when.get("store") for when in whens)
+                steam_specific = any(when.get("store") and "steam" in when.get("store") for when in whens)
+
+                if not store_agnostic and not steam_specific:
                     continue
 
                 path_type = "configsave"
@@ -213,10 +231,12 @@ class Plugin:
     async def get_app_settings(self,appInfo):
         self.app_settings = SettingsManager(name=f"settings_{appInfo['unAppID']}", settings_directory=settings_dir)
         self.current_app_id = appInfo['unAppID']
-        self.app_is_installed = appInfo['iInstallFolder'] != -1
+        self.app_name = appInfo['strDisplayName']
+        self.app_is_shortcut = 'strShortcutStartDir' in appInfo
+        self.app_is_installed = (not self.app_is_shortcut and appInfo['iInstallFolder'] != -1) or self.app_is_shortcut
         self.app_install_path = appInfo['strInstallFolder']
         self.steamid64 = int(appInfo['strOwnerSteamID'])
-        self.is_native_linux = "steamlinuxruntime" in appInfo['strCompatToolName']
+        self.is_native_linux = "steamlinuxruntime" in appInfo['strCompatToolName'] or (self.app_is_shortcut and appInfo['strCompatToolName'] == "")
         self.steamid3 = self.steamid64 - 76561197960265728
 
         cloud_enabled_for_game = appInfo['bCloudEnabledForApp']
@@ -262,9 +282,7 @@ class Plugin:
                     stream_match = re.search(catch_regex, output)
                     
                     if stream_match:
-                        found_match = stream_match.group()
-                        decky.logger.info(f"Found match: {found_match}")
-                        
+                        found_match = stream_match.group()                        
                         break
 
 
@@ -449,7 +467,7 @@ class Plugin:
         
         finished_job_ids = (await get_jobs())["finishedIds"]
         finished_jobs = await batch_job_status(finished_job_ids)
-        failed_jobs = [job for job in finished_jobs if job is not None and job.get("success") is not True and "job/" not in job.get("group")]
+        failed_jobs = [job for job in finished_jobs if job is not None and job.get("success") is not True and "job/" not in job.get("group") and job.get("group") != "customcloud_depth_check"]
 
         if len(failed_jobs) > 0:
             decky.logger.error(f"Failed jobs: {failed_jobs}")
