@@ -76,6 +76,7 @@ class Rclone:
                     _, filename = os.path.split(path['path'])
 
                     drive, srcRemote = os.path.splitdrive(path['path'])
+                    if ":" in drive: drive = f"//?/{drive}/"
                     srcRemote = srcRemote.lstrip(r'\/').replace('\\', '/')
 
                     args = [f"srcFs={drive if drive else '/'}", f"srcRemote={srcRemote}", "dstFs=customcloud-remote:",f"dstRemote={full_target_path}/{filename}"]
@@ -93,6 +94,7 @@ class Rclone:
                 marker_file.close()
 
                 drive, srcRemote = os.path.splitdrive(marker_file.name)
+                if ":" in drive: drive = f"//?/{drive}/"
                 srcRemote = srcRemote.lstrip(r'\/').replace('\\', '/')
 
                 marker_job = await cls.rc_command("operations/copyfile", [f"srcFs={drive if drive else '/'}",  f"srcRemote={srcRemote}", "dstFs=customcloud-remote:", f"dstRemote={full_target_path}/.original-path", f"_group=customcloud_rcat"])
@@ -119,6 +121,7 @@ class Rclone:
         async def get_original_path(folder):
             with tempfile.TemporaryDirectory() as marker_dir:
                 drive, dstRemote = os.path.splitdrive(marker_dir)
+                if ":" in drive: drive = f"//?/{drive}/"
                 dstRemote = dstRemote.lstrip(r'\/').replace('\\', '/')
 
                 marker_job = await cls.rc_command("operations/copyfile", ["srcFs=customcloud-remote:",  f"srcRemote={folder['Path']}/.original-path", f"dstFs={drive if drive else '/'}", f"dstRemote={dstRemote}/.original-path", f"_group=customcloud_cat"])
@@ -209,6 +212,7 @@ class Rclone:
                     _, filename = os.path.split(original_path)
 
                     drive, dstRemote = os.path.splitdrive(original_path)
+                    if ":" in drive: drive = f"//?/{drive}/"
 
                     args = ["srcFs=customcloud-remote:",f"srcRemote={folder['Path']}/{filename}", f"dstFs={drive if drive else '/'}", f"dstRemote={dstRemote}"]
 

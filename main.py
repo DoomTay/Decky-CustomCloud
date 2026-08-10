@@ -185,6 +185,16 @@ class Plugin:
                 return {"paths": default_paths, "folder": default_game_folder}
             
         paths = found_entry["files"]
+
+        # Half-Life 2 has its expansions "bundled" with the base game since the 20th anniversary update, and since they won't show up in the app list normally, we need to make sure we get the paths for those as well
+        if self.current_app_id == 220:
+            decky.logger.info("Half-Life 2 detected. Retrieving paths for other expansions")
+
+            for expansion in [380,420,340]:
+                hl2_expansion_entry = next((game for game in matches if bool(re.search(rf"steam:\n\s+id:\s?{expansion}$", game, flags=re.IGNORECASE))), None)
+                hl2_expansion_entry_parsed = yaml.safe_load(hl2_expansion_entry)
+                hl2_expansion_entry_data = next(iter(hl2_expansion_entry_parsed.values()))
+                paths.update(hl2_expansion_entry_data["files"])
         
         decky.logger.info(f"App found under {manifest_entry}. Collating paths.")
 
