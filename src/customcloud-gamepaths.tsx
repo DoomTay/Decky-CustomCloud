@@ -41,8 +41,7 @@ function GamePathField({value, disabled, onChange}: GamePathFieldProps)
         value={value.path}
         disabled={disabled}
         onClick={async () => {
-            let startingPath = value.path.replace(/\\/g,"/");
-            if(startingPath == "") startingPath = "/home/deck";
+            let startingPath = value.path?.replace(/\\/g,"/") || "/home/deck";
 
             let newPath = await openFilePicker(FileSelectionType.FILE,startingPath);
 
@@ -151,11 +150,11 @@ export default function GamePaths({initialSettings, setInitialSettings, loadingP
         }}>
         <Field label="Cloud game folder">
             <TextField
-                value={initialSettings["game_folder"]}
+                defaultValue={initialSettings["game_folder"]}
                 style={{
                     width: "300px"
                 }}
-                onChange={(e) => {
+                onBlur={(e) => {
                     setSetting("game_folder", e.target.value);
                     setInitialSettings({...initialSettings, "game_folder": e.target.value});
                     }} />

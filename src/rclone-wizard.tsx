@@ -6,6 +6,7 @@ import {
     Navigation,
     showModal,
     ShowModalResult,
+    SingleDropdownOption,
     TextField,
     ToggleField
 } from "@decky/ui";
@@ -204,7 +205,7 @@ function WizardStringSelect({optionData, onOK, onCancel}: WizardStringSelectProp
     const [customInputEnabled, setCustomInputEnabled] = useState<boolean>(!hasExamples);
     const wizardTextPrompt = useRef<string>(optionData["DefaultStr"]);
 
-    const dropdownOptions = examples?.map((option: RcloneExample) => ({data: option["Value"], label: option["Help"]}));
+    const dropdownOptions: SingleDropdownOption[] = examples?.map((option: RcloneExample) => ({data: option["Value"], label: option["Help"]}));
 
     return (
         <ConfirmModal
@@ -225,7 +226,7 @@ function WizardStringSelect({optionData, onOK, onCancel}: WizardStringSelectProp
             defaultValue={wizardTextPrompt.current}
             bIsPassword={optionData["IsPassword"]}
             mustBeNumeric={optionData["Type"] == "int"}
-            onChange={(e) => {wizardTextPrompt.current = e.target.value}}
+            onBlur={(e) => {wizardTextPrompt.current = e.target.value}}
         />) : (
             <Dropdown
             rgOptions={dropdownOptions}
