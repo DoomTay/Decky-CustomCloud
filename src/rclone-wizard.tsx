@@ -34,6 +34,8 @@ interface RcloneExample
 export default async function startConfigWizard()
 {
     let selectedRemote = "";
+    let lastState = "";
+    let allPrompts = false;
 
     function renderPrompt(promptData: PromptData)
     {
@@ -58,8 +60,8 @@ export default async function startConfigWizard()
         switch(optionData["Type"])
         {
         case "bool":
-            let yesOption = examples.find((option: RcloneExample) => option["Value"] == "true");
-            let noOption = examples.find((option: RcloneExample) => option["Value"] == "false");
+            let yesOption = examples?.find((option: RcloneExample) => option["Value"] == "true") || {"Value": "true", "Help": "Yes"};
+            let noOption = examples?.find((option: RcloneExample) => option["Value"] == "false") || {"Value": "false", "Help": "No"};
 
             modal = (<ConfirmModal
             strTitle={MODAL_TITLE}
@@ -147,9 +149,15 @@ export default async function startConfigWizard()
 
     function handlePrompt(promptData: any)
     {
+        if(promptData["State"] == "" && lastState == "")
+        {
+            allPrompts = true;
+            return nextStep();
+        }
         let promptModal = renderPrompt(promptData);
         if(promptModal)
         {
+            lastState = promptData["State"];
             if(wizardModalOpen == true) wizardModal.Update(promptModal);
             else wizardModal = openWizardModal(promptModal);
         }
@@ -188,7 +196,7 @@ export default async function startConfigWizard()
     function nextStep(state?: string, result?: string)
     {
         wizardModal.Update(loadingModal);
-        call<[remote: string, state?: string, result?: string], any>("rclone_config",selectedRemote,state,result);
+        call<[remote: string, state?: string, result?: string, allPrompts?: boolean], any>("rclone_config",selectedRemote,state,result,allPrompts);
     }
 
 }

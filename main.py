@@ -268,13 +268,15 @@ class Plugin:
         self.app_settings.setSetting(key, value)
         self.app_settings.commit()
 
-    async def rclone_config(self, remote,state=None,result=None):
+    async def rclone_config(self, remote,state=None,result=None,all=False):
         config_params = [rclone_path, "config", "create", "customcloud-remote", remote, "config_is_local", "true", "--config", os.path.join(os.environ["DECKY_PLUGIN_SETTINGS_DIR"],"rclone.conf"), "-vv", "--non-interactive"]
 
         if state is not None and result is not None:
             if result.strip() == "": result = "null"
 
             config_params.extend([ "--continue", "--state", state, "--result", result])
+
+        if all is True: config_params.extend([ "--all"])
 
         config_init = await asyncio.create_subprocess_exec(*config_params, stdout=asyncio.subprocess.PIPE,stderr=asyncio.subprocess.PIPE)
         
