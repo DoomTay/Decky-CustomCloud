@@ -18,6 +18,7 @@ import {
 import { FaCloud } from "react-icons/fa";
 import CustomCloudConfig from "./customcloud-config";
 import startConfigWizard from "./rclone-wizard";
+import { useState } from "react";
 
 const PLUGIN_NAME = "Decky CustomCloud";
 
@@ -26,22 +27,7 @@ const updateRclone = callable<[], {success: boolean, status_code: number, status
 
 function Content() {
   const [downloadingRclone, setDownloadingRclone] = useState<boolean>(false);
-  const defaultCloudDirectory = "CustomCloud-Backup"
-  const [cloudDirectory, setCloudDirectory] = useState<string>(defaultCloudDirectory);
-  const tempCloudDirectory = useRef<string>("");
-
-  useEffect(() =>
-  {
-      async function getCloudDirectory()
-      {
-        let cloudDirectoryFromSettings = await call<[key: string], string>("get_global_setting","cloud_directory");
-
-        if(cloudDirectoryFromSettings != "") setCloudDirectory(cloudDirectoryFromSettings)
-      }
-
-      getCloudDirectory()
-
-  }, [])
+  const DEFAULT_CLOUD_DIRECTORY = "CustomCloud-Backup"
 
   return (
     <PanelSection>
@@ -58,13 +44,14 @@ function Content() {
         <ButtonItem
           layout="below"
           onClick={async () => {
+            let cloudDirectory = await call<[key: string], string>("get_global_setting","cloud_directory");
+            if(cloudDirectory == "") cloudDirectory = DEFAULT_CLOUD_DIRECTORY
+
             showModal(
               <ConfirmModal
                 strTitle="Cloud directory"
                 onOK={async () => {
-                  setCloudDirectory(tempCloudDirectory.current)
-
-                  call<[key: string, value: any], any>("set_global_setting","cloud_directory", tempCloudDirectory.current);
+                  call<[key: string, value: any], any>("set_global_setting","cloud_directory", cloudDirectory);
                 }}
                 onMiddleButton={async () => {
                   showModal(
@@ -73,9 +60,7 @@ function Content() {
                         strDescription="Reset cloud directory to default?"
                         bDestructiveWarning={true}
                         onOK={async () => {
-                          setCloudDirectory(defaultCloudDirectory)
-
-                          call<[key: string, value: any], any>("set_global_setting","cloud_directory", defaultCloudDirectory);
+                          call<[key: string, value: any], any>("set_global_setting","cloud_directory", DEFAULT_CLOUD_DIRECTORY);
                         }}
                         />
                     )
@@ -84,7 +69,7 @@ function Content() {
                 >
                 <TextField 
                   defaultValue={cloudDirectory}
-                  onChange={(e) => {tempCloudDirectory.current = e.target.value}}
+                  onBlur={(e) => {cloudDirectory = e.target.value}}
                 />
               </ConfirmModal>
             )
@@ -197,7 +182,7 @@ function Content() {
             }
           }}
         >
-          {downloadingRclone ? "Updating Rclone" : "Update Rclone" }
+          {downloadingRclone ? "Updating Rclone" : "Update Rclone"}
         </ButtonItem>
       </PanelSectionRow>
     </PanelSection>

@@ -149,15 +149,17 @@ export default function GamePaths({initialSettings, setInitialSettings, loadingP
             gap: "8px"
         }}>
         <Field label="Cloud game folder">
+            <div
+            style={{
+                minWidth: "var(--gamepad-field-control-min-width, 230px)"
+            }}>
             <TextField
                 defaultValue={initialSettings["game_folder"]}
-                style={{
-                    width: "300px"
-                }}
                 onBlur={(e) => {
                     setSetting("game_folder", e.target.value);
                     setInitialSettings({...initialSettings, "game_folder": e.target.value});
                     }} />
+            </div>
         </Field>
         <DialogButton
         onClick={addPath}
