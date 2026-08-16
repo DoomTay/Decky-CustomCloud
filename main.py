@@ -366,9 +366,9 @@ class Plugin:
     async def start_timer(self):
         self.loop.create_task(self.long_running())
 
-    async def rclone_push_config(self,push_configsaves):
+    async def rclone_push(self,push_config,push_save):
         self.sync_progress = None
-        self.status = "uploading_config"
+        self.status = "uploading"
 
         await Rclone.start_rcd(self.current_app_id)
 
@@ -379,11 +379,20 @@ class Plugin:
 
         app_paths = self.app_settings.getSetting("paths",[])
 
-        await Rclone.push_config(app_paths,base_backup_path,game_cloud_folder,push_configsaves)
+        tasks = []
 
-    async def rclone_push_save(self,push_configsaves):
+        if push_config:
+            if not push_save: self.status = "uploading_config"
+            tasks.append(Rclone.push_data("config",app_paths,base_backup_path,game_cloud_folder,True))
+        if push_save:
+            if not push_config: self.status = "uploading_save"
+            tasks.append(Rclone.push_data("save",app_paths,base_backup_path,game_cloud_folder,not push_config))
+
+        await asyncio.gather(*tasks)
+
+    async def rclone_pull(self,pull_config,pull_save):
         self.sync_progress = None
-        self.status = "uploading_save"
+        self.status = "downloading"
 
         await Rclone.start_rcd(self.current_app_id)
         self.loop.create_task(self.update_progress())
@@ -391,37 +400,18 @@ class Plugin:
         game_cloud_folder = self.app_settings.getSetting("game_folder", f"game-{str(self.current_app_id)}")
         base_backup_path = self.global_settings.getSetting("cloud_directory", "CustomCloud-Backup")
 
-        app_paths = self.app_settings.getSetting("paths",[])
-        
-        await Rclone.push_save(app_paths,base_backup_path,game_cloud_folder,push_configsaves)
+        tasks = []
 
-    async def rclone_pull_config(self,pull_configsaves):
-        self.sync_progress = None
-        self.status = "downloading_config"
+        if pull_config:
+            if not pull_save: self.status = "downloading_config"
+            tasks.append(Rclone.pull_paths(f"{base_backup_path}/{game_cloud_folder}","config","save"))
+        if pull_save:
+            if not pull_config: self.status = "downloading_save"
+            tasks.append(Rclone.pull_paths(f"{base_backup_path}/{game_cloud_folder}","save","config"))
 
-        await Rclone.start_rcd(self.current_app_id)
-        self.loop.create_task(self.update_progress())
+        await asyncio.gather(*tasks)
 
-        game_cloud_folder = self.app_settings.getSetting("game_folder", f"game-{str(self.current_app_id)}")
-        base_backup_path = self.global_settings.getSetting("cloud_directory", "CustomCloud-Backup")
-
-        await Rclone.pull_paths(f"{base_backup_path}/{game_cloud_folder}","config","save")
-
-        if pull_configsaves: await Rclone.pull_paths(f"{base_backup_path}/{game_cloud_folder}","configsave")
-    
-    async def rclone_pull_save(self,pull_configsaves):
-        self.sync_progress = None
-        self.status = "downloading_save"
-
-        await Rclone.start_rcd(self.current_app_id)
-        self.loop.create_task(self.update_progress())
-
-        game_cloud_folder = self.app_settings.getSetting("game_folder", f"game-{str(self.current_app_id)}")
-        base_backup_path = self.global_settings.getSetting("cloud_directory", "CustomCloud-Backup")
-        
-        await Rclone.pull_paths(f"{base_backup_path}/{game_cloud_folder}","save","config")
-
-        if pull_configsaves: await Rclone.pull_paths(f"{base_backup_path}/{game_cloud_folder}","configsave")
+        await Rclone.pull_paths(f"{base_backup_path}/{game_cloud_folder}","configsave")
 
     async def update_progress(self):
         async def get_progress_data():

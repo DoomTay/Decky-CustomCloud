@@ -226,62 +226,30 @@ class Rclone:
         await asyncio.gather(*tasks)
 
     @classmethod
-    async def push_config(cls,app_paths: list,base_backup_path: str,game_folder: str,push_configsaves: bool):
+    async def push_data(cls,type: str, app_paths: list,base_backup_path: str,game_folder: str,push_configsaves: bool):
         game_backup_path = f"{base_backup_path}/{game_folder}"
+        exclude_type = "save" if "config" else "config"
 
-        config_paths = [path for path in app_paths if path["type"] == "config"]
+        paths = [path for path in app_paths if path["type"] == type]
 
-        def get_save_excludes(original_path):
-            save_paths = [path["path"] for path in app_paths if path["type"] == "save"]
-            relative_save_paths = []
+        def get_excludes(original_path):
+            exclude_paths = [path["path"] for path in app_paths if path["type"] == exclude_type]
+            relative_exclude_paths = []
 
-            for save_path in save_paths:
-                if original_path not in save_path: continue
+            for exclude_path in exclude_paths:
+                if original_path not in exclude_path: continue
 
-                relative_save_path = os.path.relpath(save_path,original_path)
+                relative_exclude_path = os.path.relpath(exclude_path,original_path)
 
-                if os.path.isdir(save_path): relative_save_path += "/**"
+                if os.path.isdir(exclude_path): relative_exclude_path += "/**"
 
-                relative_save_paths.append(relative_save_path.replace("\\","/"))
+                relative_exclude_paths.append(relative_exclude_path.replace("\\","/"))
 
-            return relative_save_paths
+            return relative_exclude_paths
 
-        decky.logger.info(f"Preparing to upload config data to {game_backup_path}")
+        decky.logger.info(f"Preparing to upload {type} data to {game_backup_path}")
 
-        await cls.push_paths(config_paths,game_backup_path,"config",get_save_excludes)
-
-        if push_configsaves:
-            configsave_paths = [path for path in app_paths if path["type"] == "configsave"]
-
-            if len(configsave_paths) > 0: 
-                decky.logger.info(f"Preparing to upload config+save data to {game_backup_path}")
-
-                await cls.push_paths(configsave_paths,game_backup_path,"configsave")
-
-    @classmethod
-    async def push_save(cls,app_paths: list,base_backup_path: str,game_folder: str,push_configsaves: bool):
-        game_backup_path = f"{base_backup_path}/{game_folder}"
-
-        save_paths = [path for path in app_paths if path["type"] == "save"]
-
-        def get_config_excludes(original_path):
-            config_paths = [path["path"] for path in app_paths if path["type"] == "config"]
-            relative_config_paths = []
-
-            for config_path in config_paths:
-                if original_path not in config_path: continue
-
-                relative_config_path = os.path.relpath(config_path,original_path)
-
-                if os.path.isdir(config_path): relative_config_path += "/**"
-
-                relative_config_paths.append(relative_config_path.replace("\\","/"))
-
-            return relative_config_paths
-
-        decky.logger.info(f"Preparing to upload save data to {game_backup_path}")
-
-        await cls.push_paths(save_paths,game_backup_path,"save",get_config_excludes)
+        await cls.push_paths(paths,game_backup_path,type,get_excludes)
 
         if push_configsaves:
             configsave_paths = [path for path in app_paths if path["type"] == "configsave"]

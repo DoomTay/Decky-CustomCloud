@@ -1,4 +1,4 @@
-import { call, addEventListener, removeEventListener, toaster } from "@decky/api";
+import { call, addEventListener, removeEventListener, toaster, callable } from "@decky/api";
 import {
   PanelSectionRow,
   Dropdown,
@@ -36,6 +36,9 @@ interface GameSettingsProps {
     setInitialSettings: React.Dispatch<React.SetStateAction<InitialSettings>>,
     setSelectedGame: React.Dispatch<React.SetStateAction<number | null>>,
 }
+
+const rclonePush = callable<[push_config: boolean,push_save: boolean], void>("rclone_push");
+const rclonePull = callable<[pull_config: boolean,pull_save: boolean], void>("rclone_pull");
 
 declare const collectionStore: any;
 
@@ -136,7 +139,7 @@ function GameSettings({selectedGame, gameDetails, appIsInstalled, initialSetting
             onClick={() => {
                 setRcloneProgress(undefined)
                 setRcloneEta(0)
-                call<[push_configsaves: boolean]>("rclone_push_config",true);
+                rclonePush(true,false);
                 updateRcloneStatus();
             }}
             label="Push to cloud"
@@ -165,7 +168,7 @@ function GameSettings({selectedGame, gameDetails, appIsInstalled, initialSetting
             onClick={() => {
                 setRcloneProgress(undefined)
                 setRcloneEta(0)
-                call<[pull_configsaves: boolean]>("rclone_pull_config",true);
+                rclonePull(true,false);
                 updateRcloneStatus();
             }}
             label="Pull from cloud"
@@ -195,7 +198,7 @@ function GameSettings({selectedGame, gameDetails, appIsInstalled, initialSetting
             onClick={() => {
                 setRcloneProgress(undefined)
                 setRcloneEta(0)
-                call<[push_configsaves: boolean]>("rclone_push_save",true);
+                rclonePush(false,true);
                 updateRcloneStatus();
             }}
             label="Push to cloud"
@@ -224,7 +227,7 @@ function GameSettings({selectedGame, gameDetails, appIsInstalled, initialSetting
             onClick={() => {
                 setRcloneProgress(undefined)
                 setRcloneEta(0)
-                call<[pull_configsaves: boolean]>("rclone_pull_save",true);
+                rclonePull(false,true);
                 updateRcloneStatus();
             }}
             label="Pull from cloud"
