@@ -37,6 +37,8 @@ interface GameSettingsProps {
     setSelectedGame: React.Dispatch<React.SetStateAction<number | null>>,
 }
 
+declare const collectionStore: any;
+
 function GameSettings({selectedGame, gameDetails, appIsInstalled, initialSettings, setInitialSettings, setSelectedGame}: GameSettingsProps)
 {
     const [rcloneStatus, setRcloneStatus] = useState<string>("idle");
@@ -48,22 +50,6 @@ function GameSettings({selectedGame, gameDetails, appIsInstalled, initialSetting
 
     const CLOUD_WARNING = "Steam Cloud is enabled for this game. Therefore, it is not recommended to have this on, as downloading from your cloud may cause interference with Steam Cloud. Enable this setting anyway?";
 
-    async function getInstalledGames()
-    {
-        var games = [{data: 13250, label: "Unreal Gold"},
-            {data: 338930, label: "Transformers: Devastation"},
-            {data: 480490, label: "Prey"},
-            {data: 379720, label: "Doom (2016)"},
-            {data: 1086940, label: "Baldur's Gate 3"},
-            {data: 3017860, label: "Doom: The Dark Ages"},
-            {data: 736260, label: "Baba Is You"},
-            {data: 235460, label: "Metal Gear Rising"},
-            {data: 238210, label: "System Shock 2"},
-            {data: 413410, label: "Danganronpa 1"}
-        ]
-        setInstalledGames(games);
-    }
-
     useEffect(() =>
     {
         if(installedGames.length == 0) return;
@@ -74,7 +60,9 @@ function GameSettings({selectedGame, gameDetails, appIsInstalled, initialSetting
 
     useEffect(() =>
     {
-        getInstalledGames();
+        const allGames = collectionStore.myGamesCollection.allApps.filter((app: any) => app.is_available_on_current_platform == true);
+
+        setInstalledGames(allGames.map((app: any) => ({data: app.appid, label: app.display_name})));
     }, [])
 
     useEffect(() => {
