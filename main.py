@@ -400,14 +400,18 @@ class Plugin:
         game_cloud_folder = self.app_settings.getSetting("game_folder", f"game-{str(self.current_app_id)}")
         base_backup_path = self.global_settings.getSetting("cloud_directory", "CustomCloud-Backup")
 
+        app_paths = self.app_settings.getSetting("paths",[])
+
         tasks = []
 
         if pull_config:
             if not pull_save: self.status = "downloading_config"
-            tasks.append(Rclone.pull_paths(f"{base_backup_path}/{game_cloud_folder}","config","save"))
+            exclude_paths = [path["path"] for path in app_paths if path["type"] == "save"]
+            tasks.append(Rclone.pull_paths(f"{base_backup_path}/{game_cloud_folder}","config",exclude_paths))
         if pull_save:
             if not pull_config: self.status = "downloading_save"
-            tasks.append(Rclone.pull_paths(f"{base_backup_path}/{game_cloud_folder}","save","config"))
+            exclude_paths = [path["path"] for path in app_paths if path["type"] == "config"]
+            tasks.append(Rclone.pull_paths(f"{base_backup_path}/{game_cloud_folder}","save",exclude_paths))
 
         await asyncio.gather(*tasks)
 

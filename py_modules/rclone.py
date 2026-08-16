@@ -34,9 +34,8 @@ class Rclone:
         return await asyncio.create_subprocess_exec(rclone_path, "rc", command, *args)
 
     @classmethod
-    async def push_paths(cls,paths,game_backup_path,folder_prefix,get_excludes_function=None):
-        async def process_single_path(i,path):
-            full_target_path = f"{game_backup_path}/{folder_prefix}-{i}"
+    async def push_paths(cls,paths,game_backup_path,folder_prefix,exclude_paths=[]):
+        async def process_single_path(full_target_path,path):
 
             decky.logger.info(f"Processing {path['path']}")
             if "*" in path["path"]:
@@ -58,16 +57,16 @@ class Rclone:
                 copy_job = await cls.rc_command("sync/sync", [f"srcFs={base_path}", f"dstFs=customcloud-remote:{full_target_path}", f"_filter={filter_json}", f"_group=customcloud_upload"])
 
             else:
-                excludes = get_excludes_function(path["path"]) if get_excludes_function else []
+                excludes = get_excludes(path["path"])
+                excludes.append("/.original-path")
 
                 if os.path.isdir(path['path']):
                     args = [f"srcFs={path['path']}", f"dstFs=customcloud-remote:{full_target_path}"]
 
-                    if len(excludes) > 0:
-                        filter_json=json.dumps({
-                            "ExcludeRule": excludes
-                        })
-                        args.extend([f"_filter={filter_json}"])
+                    filter_json=json.dumps({
+                        "ExcludeRule": excludes
+                    })
+                    args.extend([f"_filter={filter_json}"])
 
                     args.extend([f"_group=customcloud_upload"])
 
@@ -106,14 +105,26 @@ class Rclone:
                 
                 decky.logger.info(f"Path marker created")
 
-                    
+        def get_excludes(original_path):
+            relative_exclude_paths = []
+
+            for exclude_path in exclude_paths:
+                if original_path not in exclude_path: continue
+
+                relative_exclude_path = os.path.relpath(exclude_path,original_path)
+
+                if os.path.isdir(exclude_path): relative_exclude_path += "/**"
+
+                relative_exclude_paths.append(f"/{relative_exclude_path}".replace("\\","/"))
+
+            return relative_exclude_paths
         
-        tasks = [process_single_path(i, path) for i, path in enumerate(paths)]
+        tasks = [process_single_path(f"{game_backup_path}/{folder_prefix}-{i}", path) for i, path in enumerate(paths)]
 
         await asyncio.gather(*tasks)
 
     @classmethod
-    async def pull_paths(cls,game_backup_path,folder_prefix,exclude_prefix=None):
+    async def pull_paths(cls,game_backup_path,folder_prefix,exclude_paths=[]):
         folder_list = (await cls.rc_get_result("operations/list",[f"fs=customcloud-remote:", f"remote={game_backup_path}", f"_group=customcloud_list"]))["list"]
 
         folders_to_pull = [folder for folder in folder_list if folder["Name"].startswith(f"{folder_prefix}-")]
@@ -167,41 +178,36 @@ class Rclone:
                 if os.path.isdir(original_path):
                     args = [f"srcFs=customcloud-remote:{folder['Path']}", f"dstFs={original_path}"]
 
-                    if exclude_prefix:
-                        exclude_path_tasks = [get_original_path(folder) for folder in folder_list if folder["Name"].startswith(f"{exclude_prefix}-")]
+                    for exclude_path in exclude_paths:
+                        if original_path not in exclude_path: continue
 
-                        exclude_paths = await asyncio.gather(*exclude_path_tasks)
+                        relative_exclude_path = os.path.relpath(exclude_path,original_path)
 
-                        for exclude_path in exclude_paths:
-                            if original_path not in exclude_path: continue
+                        path_split = relative_exclude_path.split(os.path.sep)
+                        path_depths = ["/".join(path_split[:i + 1]) for i,_ in enumerate(path_split)]
 
-                            relative_exclude_path = os.path.relpath(exclude_path,original_path)
+                        batch_jobs = []
 
-                            path_split = relative_exclude_path.split(os.path.sep)
-                            path_depths = ["/".join(path_split[:i + 1]) for i,_ in enumerate(path_split)]
+                        for depth in path_depths:
+                            params = {
+                                "_path": "operations/list",
+                                "fs": "customcloud-remote:",
+                                "remote": f"{folder['Path']}/{depth}",
+                                "opt": {"noModTime": True},
+                            }
 
-                            batch_jobs = []
+                            batch_jobs.append(params)
 
-                            for depth in path_depths:
-                                params = {
-                                    "_path": "operations/list",
-                                    "fs": "customcloud-remote:",
-                                    "remote": f"{folder['Path']}/{depth}",
-                                    "opt": {"noModTime": True},
-                                }
+                        batch_json = json.dumps({"inputs": batch_jobs, "_group": f"customcloud_depth_check"})
 
-                                batch_jobs.append(params)
+                        depth_check_result = (await cls.rc_get_result("job/batch", ["--json", batch_json]))["results"]
 
-                            batch_json = json.dumps({"inputs": batch_jobs, "_group": f"customcloud_depth_check"})
+                        cutoff_index, _ = next((i,depth) for i,depth in enumerate(depth_check_result) if depth.get("status") == 404 or len(depth.get("list",[])) == 0)
+                        cutoff_point = path_depths[cutoff_index]
 
-                            depth_check_result = (await cls.rc_get_result("job/batch", ["--json", batch_json]))["results"]
+                        if os.path.isdir((os.path.join(original_path,cutoff_point))): cutoff_point += "/**"
 
-                            cutoff_index, _ = next((i,depth) for i,depth in enumerate(depth_check_result) if depth.get("status") == 404 or len(depth.get("list",[])) == 0)
-                            cutoff_point = path_depths[cutoff_index]
-
-                            if os.path.isdir((os.path.join(original_path,cutoff_point))): cutoff_point += "/**"
-
-                            filter_rules["ExcludeRule"].append(f"/{cutoff_point}")
+                        filter_rules["ExcludeRule"].append(f"/{cutoff_point}")
 
                     filter_json=json.dumps(filter_rules)
 
@@ -232,24 +238,11 @@ class Rclone:
 
         paths = [path for path in app_paths if path["type"] == type]
 
-        def get_excludes(original_path):
-            exclude_paths = [path["path"] for path in app_paths if path["type"] == exclude_type]
-            relative_exclude_paths = []
-
-            for exclude_path in exclude_paths:
-                if original_path not in exclude_path: continue
-
-                relative_exclude_path = os.path.relpath(exclude_path,original_path)
-
-                if os.path.isdir(exclude_path): relative_exclude_path += "/**"
-
-                relative_exclude_paths.append(relative_exclude_path.replace("\\","/"))
-
-            return relative_exclude_paths
+        exclude_paths = [path["path"] for path in app_paths if path["type"] == exclude_type]
 
         decky.logger.info(f"Preparing to upload {type} data to {game_backup_path}")
 
-        await cls.push_paths(paths,game_backup_path,type,get_excludes)
+        await cls.push_paths(paths,game_backup_path,type,exclude_paths)
 
         if push_configsaves:
             configsave_paths = [path for path in app_paths if path["type"] == "configsave"]
