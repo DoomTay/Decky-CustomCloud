@@ -146,6 +146,14 @@ class Rclone:
 
             return original_path
 
+        async def remote_is_dir(path):
+            result = await cls.rc_get_result("operations/list",["fs=customcloud-remote:",f"remote={path}"])
+
+            entries_except_original = [entry for entry in result["list"] if entry['Name'] != '.original-path']
+
+            # If a path points to only a single file, then there would only be one entry after filtering out .original-path
+            return (len(entries_except_original) > 1 or (len(entries_except_original) == 1 and entries_except_original[0]["IsDir"] == True))
+
         async def pull_folder(folder):
             original_path = await get_original_path(folder)
 
@@ -173,9 +181,9 @@ class Rclone:
 
                 filter_json=json.dumps(filter_rules)
 
-                await cls.rc_command("sync/sync", [f"srcFs=customcloud-remote:{folder['Path']}", f"dstFs={base_path}", f"_filter={filter_json}", f"_config={config_json}", f"_group=customcloud_download"])
+                await cls.rc_command("sync/sync", [f"srcFs=customcloud-remote:{folder['Path']}", f"dstFs={base_path}", f"_filter={filter_json}", f"_group=customcloud_download"])
             else:
-                if os.path.isdir(original_path):
+                if (await remote_is_dir(folder['Path'])):
                     args = [f"srcFs=customcloud-remote:{folder['Path']}", f"dstFs={original_path}"]
 
                     for exclude_path in exclude_paths:
@@ -211,7 +219,7 @@ class Rclone:
 
                     filter_json=json.dumps(filter_rules)
 
-                    args.extend([f"_filter={filter_json}", f"_config={config_json}", f"_group=customcloud_download"])
+                    args.extend([f"_filter={filter_json}", f"_group=customcloud_download"])
 
                     await cls.rc_command("sync/sync", args)
                 else:
@@ -224,7 +232,7 @@ class Rclone:
 
                     filter_json=json.dumps(filter_rules)
 
-                    args.extend([f"_filter={filter_json}", f"_config={config_json}", f"_group=customcloud_download"])
+                    args.extend([f"_filter={filter_json}", f"_group=customcloud_download"])
 
                     await cls.rc_command("operations/copyfile", args)
         tasks = [pull_folder(folder) for folder in folders_to_pull]
