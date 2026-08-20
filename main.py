@@ -261,6 +261,14 @@ class Plugin:
             await self.set_default_paths()
             
         return self.app_settings.settings
+
+    async def get_app_setting(self,app_id,setting,default):
+        self.app_settings = SettingsManager(name=f"settings_{app_id}", settings_directory=settings_dir)
+        self.current_app_id = app_id
+
+        if not self.app_settings.settings: return default
+
+        return self.app_settings.getSetting(setting, default)
     
     async def set_app_setting(self, key, value):
         if not self.app_settings: return
@@ -372,8 +380,6 @@ class Plugin:
 
         await Rclone.start_rcd(self.current_app_id)
 
-        self.loop.create_task(self.update_progress())
-
         game_cloud_folder = self.app_settings.getSetting("game_folder", f"game-{str(self.current_app_id)}")
         base_backup_path = self.global_settings.getSetting("cloud_directory", "CustomCloud-Backup")
 
@@ -390,12 +396,13 @@ class Plugin:
 
         await asyncio.gather(*tasks)
 
+        self.loop.create_task(self.update_progress())
+
     async def rclone_pull(self,pull_config,pull_save):
         self.sync_progress = None
         self.status = "downloading"
 
         await Rclone.start_rcd(self.current_app_id)
-        self.loop.create_task(self.update_progress())
 
         game_cloud_folder = self.app_settings.getSetting("game_folder", f"game-{str(self.current_app_id)}")
         base_backup_path = self.global_settings.getSetting("cloud_directory", "CustomCloud-Backup")
@@ -413,9 +420,11 @@ class Plugin:
             exclude_paths = [path["path"] for path in app_paths if path["type"] == "config"]
             tasks.append(Rclone.pull_paths(f"{base_backup_path}/{game_cloud_folder}","save",exclude_paths))
 
+        tasks.append(Rclone.pull_paths(f"{base_backup_path}/{game_cloud_folder}","configsave"))
+
         await asyncio.gather(*tasks)
 
-        await Rclone.pull_paths(f"{base_backup_path}/{game_cloud_folder}","configsave")
+        self.loop.create_task(self.update_progress())
 
     async def update_progress(self):
         async def get_progress_data():
@@ -441,14 +450,10 @@ class Plugin:
         
         await decky.emit("progress_event", None, None, "Task still in progress")
 
-        # We need some time for certain jobs to "warm up" or they won't show up yet and the tracker will dip prematurely
-        await asyncio.sleep(3)
         decky.logger.info("Beginning check loop")
-        active_jobs = (await get_jobs())["runningIds"]
 
-        all_job_progress = await batch_job_status(active_jobs)
-
-        all_jobs_finished = len(active_jobs) == 0 or all(job["finished"] is True for job in all_job_progress if "job/" not in job["group"])
+        all_job_progress = Rclone.active_jobs
+        all_jobs_finished = all_job_progress == 0
 
         current_progress_data = await get_progress_data()
         
@@ -456,9 +461,8 @@ class Plugin:
         else: self.sync_progress = (current_progress_data["bytes"] / current_progress_data["totalBytes"]) * 100
 
         while all_jobs_finished is False:
-            active_jobs = (await get_jobs())["runningIds"]
-            all_job_progress = await batch_job_status(active_jobs)
-            all_jobs_finished = len(active_jobs) == 0 or all(job["finished"] == True for job in all_job_progress if "job/" not in job["group"])
+            all_job_progress = Rclone.active_jobs
+            all_jobs_finished = all_job_progress == 0
 
             if all_jobs_finished: break
 

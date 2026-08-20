@@ -6,24 +6,33 @@ import {
   staticClasses,
   showModal,
   ConfirmModal,
-  TextField
+  TextField,
+  ModalRoot,
+  DialogHeader,
+  DialogBodyText
 } from "@decky/ui";
 import {
+  addEventListener,
   call,
   callable,
   definePlugin,
+  removeEventListener,
   routerHook,
   toaster
 } from "@decky/api"
 import { FaCloud } from "react-icons/fa";
 import CustomCloudConfig from "./customcloud-config";
 import startConfigWizard from "./rclone-wizard";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { AppLifetimeNotification } from "@decky/ui/dist/globals/steam-client/GameSessions";
+import { ELaunchSource } from "@decky/ui/dist/globals/steam-client/App";
 
 const PLUGIN_NAME = "Decky CustomCloud";
 
 const downloadManifest = callable<[], {success: boolean, status_code: number, status_text: string, error: string}>("download_ludusavi_manifest");
 const updateRclone = callable<[], {success: boolean, status_code: number, status_text: string, error: string}>("update_rclone");
+const getSetting = callable<[appId: number, setting: string, default_value: any], any>("get_app_setting");
+let gameIsRunning = false;
 
 function Content() {
   const [downloadingRclone, setDownloadingRclone] = useState<boolean>(false);
@@ -189,6 +198,37 @@ function Content() {
   );
 };
 
+function CloudDownloadModal({downloadConfigBeforeGame,downloadSaveBeforeGame,onClose}: {downloadConfigBeforeGame: boolean,downloadSaveBeforeGame: boolean, onClose: () => void})
+{
+  const [progress,setProgress] = useState<number  | undefined>();
+
+  useEffect(() => {
+    addEventListener("progress_event",updateProgress);
+
+    call<[pull_config: boolean,pull_save: boolean], void>("rclone_pull",downloadConfigBeforeGame,downloadSaveBeforeGame);
+
+    return () => {
+      removeEventListener("progress_event",updateProgress);
+    }
+  },[])
+
+  function updateProgress(newProgress: number)
+  {
+    console.log(newProgress);
+    setProgress(newProgress);
+
+    if(newProgress == 100) onClose();
+  }
+
+  return <ModalRoot
+    bOKDisabled={true}
+    bCancelDisabled={true}
+    onCancel={() => {}}>
+        <DialogHeader>{PLUGIN_NAME}</DialogHeader>
+        <DialogBodyText>Downloading from cloud...{(progress != undefined) && `(${Math.floor(progress)}%)`}</DialogBodyText>
+  </ModalRoot>
+}
+
 export default definePlugin(() => {
   routerHook.addRoute("/customcloud-config", CustomCloudConfig, {});
 
@@ -204,6 +244,44 @@ export default definePlugin(() => {
     }
   });
  */
+
+  const gameLaunchRegister = SteamClient.Apps.RegisterForGameActionStart(async (gameActionId: number, appId: string, action: string, launchSource: ELaunchSource) => {
+    if(action == "LaunchApp" && gameIsRunning == false)
+    {
+      gameIsRunning = true;
+      const appIdNum = Number(appId);
+      const [downloadConfigBeforeGame,downloadSaveBeforeGame] = await Promise.all([getSetting(appIdNum,"sync_config_before_game",false),getSetting(appIdNum,"sync_save_before_game",false)]);
+      if(downloadConfigBeforeGame || downloadSaveBeforeGame)
+      {
+        console.log("Initializing download");
+        SteamClient.Apps.CancelGameAction(gameActionId);
+
+        const loadingModal = showModal(
+          <CloudDownloadModal
+          downloadConfigBeforeGame={downloadConfigBeforeGame}
+          downloadSaveBeforeGame={downloadSaveBeforeGame}
+          onClose={() => {
+            console.log("Download complete");
+            loadingModal.Close();
+            SteamClient.Apps.RunGame(appId, "", -1, launchSource);
+          }
+          }/>
+        )
+      }
+    }
+  })
+
+  const stateUnregister = SteamClient.GameSessions.RegisterForAppLifetimeNotifications(async (e: AppLifetimeNotification) => {
+    if(e.bRunning == false)
+    {
+      console.log("Ending",e.unAppID);
+      gameIsRunning = false;
+
+      const [uploadConfigAfterGame,uploadSaveAfterGame] = await Promise.all([getSetting(e.unAppID,"sync_config_after_game",true),getSetting(e.unAppID,"sync_save_after_game",true)])
+
+      if(uploadConfigAfterGame || uploadSaveAfterGame) call<[push_config: boolean,push_save: boolean], void>("rclone_push",uploadConfigAfterGame,uploadSaveAfterGame);
+    }
+  })
 
   const configPatch = routerHook.addPatch('/library/app/:appid',
     (props) => {
@@ -224,6 +302,8 @@ export default definePlugin(() => {
     onDismount() {
       routerHook.removeRoute("/customcloud-config");
       routerHook.removePatch('/library/app/:appid',configPatch);
+      gameLaunchRegister.unregister();
+      stateUnregister.unregister();
     },
   };
 });
