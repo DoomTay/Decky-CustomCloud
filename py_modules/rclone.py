@@ -37,32 +37,12 @@ class Rclone:
         return await asyncio.create_subprocess_exec(rclone_path, "rc", command, *args)
 
     @classmethod
-    async def track_job(cls,job_id):
-        job_progress = await cls.rc_get_result("job/status",[f"jobid={job_id}"])
-
-        while job_progress["finished"] == False:
-            job_progress = await cls.rc_get_result("job/status",[f"jobid={job_id}"])
-
-            await asyncio.sleep(0.5)
-
-    @classmethod
     def decrease_job_count(cls,task=None):
         Rclone.active_jobs -= 1
 
     @classmethod
     async def push_paths(cls,paths,game_backup_path,folder_prefix,exclude_paths=[]):
         async def process_single_path(full_target_path,path):
-            sync_job_done = False
-            marker_created = False
-
-            def check_both_tasks_completed():
-                if sync_job_done is True and marker_created is True: cls.decrease_job_count()
-
-            def sync_job_completed(task):
-                nonlocal sync_job_done
-                sync_job_done = True
-                check_both_tasks_completed()
-
             Rclone.active_jobs += 1
             decky.logger.info(f"Processing {path['path']}")
 
@@ -82,7 +62,7 @@ class Rclone:
                     "IncludeRule": [f"{filter}"],
                 })
 
-                copy_job = await cls.rc_get_result("sync/sync", [f"srcFs={base_path}", f"dstFs=customcloud-remote:{full_target_path}", f"_filter={filter_json}", f"_group=customcloud_upload", "_async=true"])
+                copy_job = await cls.rc_command("sync/sync", [f"srcFs={base_path}", f"dstFs=customcloud-remote:{full_target_path}", f"_filter={filter_json}", f"_group=customcloud_upload"])
 
             else:
                 excludes = get_excludes(path["path"])
@@ -96,9 +76,9 @@ class Rclone:
                     })
                     args.extend([f"_filter={filter_json}"])
 
-                    args.extend([f"_group=customcloud_upload", "_async=true"])
+                    args.extend([f"_group=customcloud_upload"])
 
-                    copy_job = await cls.rc_get_result("sync/sync", args)
+                    copy_job = await cls.rc_command("sync/sync", args)
                 else:
                     _, filename = os.path.split(path['path'])
 
@@ -108,13 +88,11 @@ class Rclone:
 
                     args = [f"srcFs={drive if drive else '/'}", f"srcRemote={srcRemote}", "dstFs=customcloud-remote:",f"dstRemote={full_target_path}/{filename}"]
 
-                    args.extend([f"_group=customcloud_upload", "_async=true"])
+                    args.extend([f"_group=customcloud_upload"])
 
-                    copy_job = await cls.rc_get_result("operations/copyfile", args)
+                    copy_job = await cls.rc_command("operations/copyfile", args)
 
-            copy_job = asyncio.create_task(cls.track_job(copy_job["jobid"]))
-            
-            copy_job.add_done_callback(sync_job_completed)
+            await copy_job.wait()
 
             decky.logger.info(f"Creating path marker in {full_target_path}")
             
@@ -133,8 +111,7 @@ class Rclone:
                 if os.path.exists(marker_file.name):
                     os.remove(marker_file.name)
 
-                marker_created = True
-                check_both_tasks_completed()
+                cls.decrease_job_count()
                 
                 decky.logger.info(f"Path marker created")
 
@@ -190,6 +167,7 @@ class Rclone:
 
         async def pull_folder(folder):
             Rclone.active_jobs += 1
+            decky.logger.info(f"Processing {folder['Path']}")
 
             original_path = await get_original_path(folder)
 
@@ -213,7 +191,7 @@ class Rclone:
 
                 filter_json=json.dumps(filter_rules)
 
-                sync_job = await cls.rc_get_result("sync/sync", [f"srcFs=customcloud-remote:{folder['Path']}", f"dstFs={base_path}", f"_filter={filter_json}", f"_group=customcloud_download", "_async=true"])
+                sync_job = await cls.rc_command("sync/sync", [f"srcFs=customcloud-remote:{folder['Path']}", f"dstFs={base_path}", f"_filter={filter_json}", f"_group=customcloud_download"])
             else:
                 if (await remote_is_dir(folder['Path'])):
                     args = [f"srcFs=customcloud-remote:{folder['Path']}", f"dstFs={original_path}"]
@@ -251,9 +229,9 @@ class Rclone:
 
                     filter_json=json.dumps(filter_rules)
 
-                    args.extend([f"_filter={filter_json}", f"_group=customcloud_download", "_async=true"])
+                    args.extend([f"_filter={filter_json}", f"_group=customcloud_download"])
 
-                    sync_job = await cls.rc_get_result("sync/sync", args)
+                    sync_job = await cls.rc_command("sync/sync", args)
                 else:
                     _, filename = os.path.split(original_path)
 
@@ -264,13 +242,14 @@ class Rclone:
 
                     filter_json=json.dumps(filter_rules)
 
-                    args.extend([f"_filter={filter_json}", f"_group=customcloud_download", "_async=true"])
+                    args.extend([f"_filter={filter_json}", f"_group=customcloud_download"])
 
-                    sync_job = await cls.rc_get_result("operations/copyfile", args)
+                    sync_job = await cls.rc_command("operations/copyfile", args)
 
-            sync_task = asyncio.create_task(cls.track_job(sync_job["jobid"]))
+            await sync_job.wait()
 
-            sync_task.add_done_callback(cls.decrease_job_count)
+            decky.logger.info(f"{folder['Path']} downloaded")
+            cls.decrease_job_count()
         tasks = [pull_folder(folder) for folder in folders_to_pull]
 
         for task in tasks:

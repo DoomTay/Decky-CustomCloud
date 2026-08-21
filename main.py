@@ -471,7 +471,7 @@ class Plugin:
             if current_progress_data["totalBytes"] == 0: self.sync_progress = None
             else: self.sync_progress = (current_progress_data["bytes"] / current_progress_data["totalBytes"]) * 100
 
-            if self.sync_progress is None or self.sync_progress < 100: await decky.emit("progress_event", self.sync_progress, current_progress_data["eta"], "Task still in progress")
+            await decky.emit("progress_event", None if self.sync_progress == None else min(self.sync_progress,99), current_progress_data["eta"], "Task still in progress")
 
             await asyncio.sleep(1)
         
