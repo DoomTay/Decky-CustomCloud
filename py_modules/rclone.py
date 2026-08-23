@@ -160,13 +160,7 @@ class Rclone:
             Rclone.active_jobs.add(new_task)
 
     @classmethod
-    async def pull_paths(cls,game_backup_path,folder_prefix,exclude_paths=[]):
-        decky.logger.info(f"Retrieving folder list for {folder_prefix}")
-        folder_list = (await cls.rc_get_result("operations/list",[f"fs=customcloud-remote:", f"remote={game_backup_path}", f"_group=customcloud_list"]))["list"]
-
-        folders_to_pull = [folder for folder in folder_list if folder["Name"].startswith(f"{folder_prefix}-")]
-        decky.logger.info(f"Folder list for {folder_prefix} acquired")
-
+    async def pull_paths(cls,folders_to_pull,exclude_paths=[]):
         async def get_original_path(folder):
             with tempfile.TemporaryDirectory() as marker_dir:
                 drive, dstRemote = os.path.splitdrive(marker_dir)

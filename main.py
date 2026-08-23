@@ -411,21 +411,26 @@ class Plugin:
 
         game_cloud_folder = self.app_settings.getSetting("game_folder", f"game-{str(self.current_app_id)}")
         base_backup_path = self.global_settings.getSetting("cloud_directory", "CustomCloud-Backup")
+        game_backup_path = f"{base_backup_path}/{game_cloud_folder}"
 
         app_paths = self.app_settings.getSetting("paths",[])
+
+        decky.logger.info(f"Retrieving folder list")
+        folder_list = (await Rclone.rc_get_result("operations/list",[f"fs=customcloud-remote:", f"remote={game_backup_path}", f"_group=customcloud_list"]))["list"]
+        decky.logger.info(f"Folder list acquired")
 
         tasks = []
 
         if pull_config:
             if not pull_save: self.status = "downloading_config"
             exclude_paths = [path["path"] for path in app_paths if path["type"] == "save"]
-            tasks.append(Rclone.pull_paths(f"{base_backup_path}/{game_cloud_folder}","config",exclude_paths))
+            tasks.append(Rclone.pull_paths([folder for folder in folder_list if folder["Name"].startswith("config-")],exclude_paths))
         if pull_save:
             if not pull_config: self.status = "downloading_save"
             exclude_paths = [path["path"] for path in app_paths if path["type"] == "config"]
-            tasks.append(Rclone.pull_paths(f"{base_backup_path}/{game_cloud_folder}","save",exclude_paths))
+            tasks.append(Rclone.pull_paths([folder for folder in folder_list if folder["Name"].startswith("save-")],exclude_paths))
 
-        tasks.append(Rclone.pull_paths(f"{base_backup_path}/{game_cloud_folder}","configsave"))
+        tasks.append(Rclone.pull_paths([folder for folder in folder_list if folder["Name"].startswith("configsave-")]))
 
         await asyncio.gather(*tasks)
 
