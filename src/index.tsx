@@ -245,11 +245,21 @@ export default definePlugin(() => {
   });
  */
 
+  const getRealAppID = (appId: number) =>
+  {
+    const lowerBits = appId & 0xFFFFFFFF;
+
+    if(lowerBits == 0x02000000) appId = Number(BigInt(appId) >> (BigInt(32)));
+
+    return appId;
+  }
+
   const gameLaunchRegister = SteamClient.Apps.RegisterForGameActionStart(async (gameActionId: number, appId: string, action: string, launchSource: ELaunchSource) => {
     if(action == "LaunchApp" && gameIsRunning == false)
     {
       gameIsRunning = true;
       const appIdNum = Number(appId);
+      const appIdNum = getRealAppID(Number(appId));
       const [downloadConfigBeforeGame,downloadSaveBeforeGame] = await Promise.all([getSetting(appIdNum,"sync_config_before_game",false),getSetting(appIdNum,"sync_save_before_game",false)]);
       if(downloadConfigBeforeGame || downloadSaveBeforeGame)
       {
