@@ -89,7 +89,7 @@
         },
         {
             "label": "copyzipwin",
-            "detail": "Deploy plugin zip to deck (Windows)",
+            "detail": "Deploy plugin zip to Windows",
             "type": "shell",
             "group": "none",
             "command": "rsync -azp --chmod=D0755,F0755 out/ ${config:windir}/homebrew/plugins",
@@ -139,7 +139,7 @@
         //"All-in-on" build & deploy task (Windows)
         {
             "label": "builddeploywin",
-            "detail": "Builds plugin and deploys to deck",
+            "detail": "Builds plugin and deploys to Windows",
             "dependsOrder": "sequence",
             "group": "none",
             "dependsOn": [
