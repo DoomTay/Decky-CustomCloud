@@ -222,12 +222,17 @@ function CloudDownloadModal({downloadConfigBeforeGame,downloadSaveBeforeGame,onC
       {
         showModal(<ConfirmModal
           bHideCloseIcon={true}
+          strOKButtonText="Yes"
+          strCancelButtonText="No"
           strTitle={PLUGIN_NAME}
+          strDescription={<div style = {{
+                    whiteSpace: "pre-wrap",
+                    wordWrap: "break-word"
+                }}>Download finished with one or more error, including:<br /><br />
+          {error}<br /><br />
+          Your data may not have been downloaded successfully. Continue anyway?</div>}
           onOK={onComplete}
           onCancel={onCancel}>
-          Download finished with one or more error, including:<br /><br />
-          {error}<br /><br />
-          Your data may not have been downloaded successfully. Continue anyway?
         </ConfirmModal>)
       }
       else onComplete();
@@ -238,7 +243,7 @@ function CloudDownloadModal({downloadConfigBeforeGame,downloadSaveBeforeGame,onC
     bAlertDialog={true}
     bHideCloseIcon={true}
     bOKDisabled={buttonDisabled}
-    strOKButtonText={"Cancel"}
+    strOKButtonText="Cancel"
     strTitle={PLUGIN_NAME}
     closeModal={async () => {
       console.log("This should only fire when manually closed");
