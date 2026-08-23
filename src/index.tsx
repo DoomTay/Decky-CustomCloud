@@ -211,12 +211,27 @@ function CloudDownloadModal({downloadConfigBeforeGame,downloadSaveBeforeGame,onC
     }
   },[])
 
-  function updateProgress(newProgress: number)
+  function updateProgress(newProgress: number,eta: number, message: string,error: string)
   {
     if(downloadCancelled.current == true) return;
     setProgress(newProgress);
 
-    if(newProgress == 100 && downloadCancelled.current == false) onComplete();
+    if(newProgress == 100 && downloadCancelled.current == false)
+    {
+      if(error)
+      {
+        showModal(<ConfirmModal
+          bHideCloseIcon={true}
+          strTitle={PLUGIN_NAME}
+          onOK={onComplete}
+          onCancel={onCancel}>
+          Download finished with one or more error, including:<br /><br />
+          {error}<br /><br />
+          Your data may not have been downloaded successfully. Continue anyway?
+        </ConfirmModal>)
+      }
+      else onComplete();
+    }
   }
 
   return <ConfirmModal

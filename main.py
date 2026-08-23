@@ -497,7 +497,7 @@ class Plugin:
         if len(failed_jobs) > 0:
             decky.logger.error(f"Failed jobs: {failed_jobs}")
 
-            await decky.emit("progress_event", 100, 0, "Syncing complete with errors")
+            await decky.emit("progress_event", 100, 0, "Syncing complete with errors",failed_jobs[0]["error"])
         else: await decky.emit("progress_event", 100, 0, "Syncing complete")
 
         decky.logger.info("Cloud sync complete")
