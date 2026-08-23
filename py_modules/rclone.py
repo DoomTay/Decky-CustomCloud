@@ -10,10 +10,11 @@ rclone_path = os.path.join(runtime_dir,"rclone")
 log_dir = os.environ["DECKY_PLUGIN_LOG_DIR"]
 
 class Rclone:
-    active_jobs = 0
+    active_jobs = set()
 
     @classmethod
     async def start_rcd(cls,app_id):
+        decky.logger.info("Starting rclone RC daemon")
         timestamp = datetime.now().strftime('%Y-%m-%d %H.%M.%S')
 
         await asyncio.create_subprocess_exec(rclone_path, "rcd", "--rc-no-auth", "--config", os.path.join(os.environ["DECKY_PLUGIN_SETTINGS_DIR"],"rclone.conf"), "-vv", f"--log-file={os.path.join(log_dir, f'rclone-{app_id}-{timestamp}.log')}")
@@ -22,7 +23,7 @@ class Rclone:
     
     @classmethod
     async def stop_rcd(cls):
-        print("Shutting down rclone RC daemon")
+        decky.logger.info("Shutting down rclone RC daemon")
         await cls.rc_command("core/quit")
 
     @classmethod
@@ -37,13 +38,37 @@ class Rclone:
         return await asyncio.create_subprocess_exec(rclone_path, "rc", command, *args)
 
     @classmethod
-    def decrease_job_count(cls,task=None):
-        Rclone.active_jobs -= 1
+    async def kill_all_jobs(cls):
+        decky.logger.info("Killing all running rclone jobs")
+
+        for task in Rclone.active_jobs:
+            task.cancel()
+
+        await asyncio.gather(*Rclone.active_jobs, return_exceptions=True)
+
+        Rclone.active_jobs.clear()
+        
+        active_rclone_jobs = (await cls.rc_get_result("job/list")).get("runningIds",[])
+
+        batch_jobs = []
+        
+        for job in active_rclone_jobs:
+            params = {
+                "_path": "job/stop",
+                "jobid": job
+            }
+
+            batch_jobs.append(params)
+
+        batch_json = json.dumps({"inputs": batch_jobs})
+
+        await cls.rc_get_result("job/batch", ["--json", batch_json])
+
+        await asyncio.sleep(0.5)
 
     @classmethod
     async def push_paths(cls,paths,game_backup_path,folder_prefix,exclude_paths=[]):
         async def process_single_path(full_target_path,path):
-            Rclone.active_jobs += 1
             decky.logger.info(f"Processing {path['path']}")
 
             if "*" in path["path"]:
@@ -110,8 +135,6 @@ class Rclone:
 
                 if os.path.exists(marker_file.name):
                     os.remove(marker_file.name)
-
-                cls.decrease_job_count()
                 
                 decky.logger.info(f"Path marker created")
 
@@ -132,13 +155,17 @@ class Rclone:
         tasks = [process_single_path(f"{game_backup_path}/{folder_prefix}-{i}", path) for i, path in enumerate(paths)]
 
         for task in tasks:
-            asyncio.create_task(task)
+            new_task = asyncio.create_task(task)
+            new_task.add_done_callback(Rclone.active_jobs.discard)
+            Rclone.active_jobs.add(new_task)
 
     @classmethod
     async def pull_paths(cls,game_backup_path,folder_prefix,exclude_paths=[]):
+        decky.logger.info(f"Retrieving folder list for {folder_prefix}")
         folder_list = (await cls.rc_get_result("operations/list",[f"fs=customcloud-remote:", f"remote={game_backup_path}", f"_group=customcloud_list"]))["list"]
 
         folders_to_pull = [folder for folder in folder_list if folder["Name"].startswith(f"{folder_prefix}-")]
+        decky.logger.info(f"Folder list for {folder_prefix} acquired")
 
         async def get_original_path(folder):
             with tempfile.TemporaryDirectory() as marker_dir:
@@ -152,6 +179,8 @@ class Rclone:
 
                 marker_file = os.path.join(marker_dir,".original-path")
 
+                if not os.path.exists(marker_file): return ""
+
                 with open (marker_file, "r", encoding="utf-8") as marker_contents:
                     original_path = marker_contents.read()
 
@@ -160,16 +189,17 @@ class Rclone:
         async def remote_is_dir(path):
             result = await cls.rc_get_result("operations/list",["fs=customcloud-remote:",f"remote={path}"])
 
-            entries_except_original = [entry for entry in result["list"] if entry['Name'] != '.original-path']
+            entries_except_original = [entry for entry in result["list"] if entry['Name'] != ".original-path"]
 
             # If a path points to only a single file, then there would only be one entry after filtering out .original-path
             return (len(entries_except_original) > 1 or (len(entries_except_original) == 1 and entries_except_original[0]["IsDir"] == True))
 
         async def pull_folder(folder):
-            Rclone.active_jobs += 1
             decky.logger.info(f"Processing {folder['Path']}")
 
             original_path = await get_original_path(folder)
+            if original_path == "": return
+            decky.logger.info(f"Got original path for {folder['Path']}. Beginning download")
 
             filter_rules = {
                 "ExcludeRule": ["/.original-path"],
@@ -249,11 +279,12 @@ class Rclone:
             await sync_job.wait()
 
             decky.logger.info(f"{folder['Path']} downloaded")
-            cls.decrease_job_count()
         tasks = [pull_folder(folder) for folder in folders_to_pull]
 
         for task in tasks:
-            asyncio.create_task(task)
+            new_task = asyncio.create_task(task)
+            new_task.add_done_callback(Rclone.active_jobs.discard)
+            Rclone.active_jobs.add(new_task)
 
     @classmethod
     async def push_data(cls,type: str, app_paths: list,base_backup_path: str,game_folder: str,push_configsaves: bool):

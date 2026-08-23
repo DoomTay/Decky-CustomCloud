@@ -6,10 +6,7 @@ import {
   staticClasses,
   showModal,
   ConfirmModal,
-  TextField,
-  ModalRoot,
-  DialogHeader,
-  DialogBodyText
+  TextField
 } from "@decky/ui";
 import {
   addEventListener,
@@ -23,7 +20,7 @@ import {
 import { FaCloud } from "react-icons/fa";
 import CustomCloudConfig from "./customcloud-config";
 import startConfigWizard from "./rclone-wizard";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AppLifetimeNotification } from "@decky/ui/dist/globals/steam-client/GameSessions";
 import { ELaunchSource } from "@decky/ui/dist/globals/steam-client/App";
 
@@ -198,9 +195,11 @@ function Content() {
   );
 };
 
-function CloudDownloadModal({downloadConfigBeforeGame,downloadSaveBeforeGame,onClose}: {downloadConfigBeforeGame: boolean,downloadSaveBeforeGame: boolean, onClose: () => void})
+function CloudDownloadModal({downloadConfigBeforeGame,downloadSaveBeforeGame,onComplete,onCancel}: {downloadConfigBeforeGame: boolean,downloadSaveBeforeGame: boolean, onComplete: () => void, onCancel: () => void})
 {
-  const [progress,setProgress] = useState<number  | undefined>();
+  const [progress,setProgress] = useState<number | undefined>();
+  const [buttonDisabled,setButtonDisabled] = useState<boolean>(false);
+  const downloadCancelled = useRef<boolean>(false);
 
   useEffect(() => {
     addEventListener("progress_event",updateProgress);
@@ -214,19 +213,30 @@ function CloudDownloadModal({downloadConfigBeforeGame,downloadSaveBeforeGame,onC
 
   function updateProgress(newProgress: number)
   {
-    console.log(newProgress);
+    if(downloadCancelled.current == true) return;
     setProgress(newProgress);
 
-    if(newProgress == 100) onClose();
+    if(newProgress == 100 && downloadCancelled.current == false) onComplete();
   }
 
-  return <ModalRoot
-    bOKDisabled={true}
-    bCancelDisabled={true}
-    onCancel={() => {}}>
-        <DialogHeader>{PLUGIN_NAME}</DialogHeader>
-        <DialogBodyText>Downloading from cloud...{(progress != undefined) && `(${Math.floor(progress)}%)`}</DialogBodyText>
-  </ModalRoot>
+  return <ConfirmModal
+    bAlertDialog={true}
+    bHideCloseIcon={true}
+    bOKDisabled={buttonDisabled}
+    strOKButtonText={"Cancel"}
+    strTitle={PLUGIN_NAME}
+    closeModal={async () => {
+      console.log("This should only fire when manually closed");
+      downloadCancelled.current = true;
+      removeEventListener("progress_event",updateProgress);
+      setButtonDisabled(true);
+      await call<[], void>("rclone_kill_all_jobs");
+      call<[], void>("rclone_kill_rcd");
+      onCancel()
+    }}
+    onOK={() => {}}>
+    Downloading from cloud...{(progress != undefined) && `(${Math.floor(progress)}%)`}
+  </ConfirmModal>
 }
 
 export default definePlugin(() => {
@@ -258,19 +268,23 @@ export default definePlugin(() => {
     if(action == "LaunchApp" && gameIsRunning == false)
     {
       gameIsRunning = true;
-      const appIdNum = Number(appId);
       const appIdNum = getRealAppID(Number(appId));
+      console.log("Getting preferences for appid",appIdNum);
       const [downloadConfigBeforeGame,downloadSaveBeforeGame] = await Promise.all([getSetting(appIdNum,"sync_config_before_game",false),getSetting(appIdNum,"sync_save_before_game",false)]);
       if(downloadConfigBeforeGame || downloadSaveBeforeGame)
       {
-        console.log("Initializing download");
+        console.log("Initializing download for appid",appIdNum);
         SteamClient.Apps.CancelGameAction(gameActionId);
 
         const loadingModal = showModal(
           <CloudDownloadModal
           downloadConfigBeforeGame={downloadConfigBeforeGame}
           downloadSaveBeforeGame={downloadSaveBeforeGame}
-          onClose={() => {
+          onCancel={() => {
+            loadingModal.Close();
+            gameIsRunning = false;
+          }}
+          onComplete={() => {
             console.log("Download complete");
             loadingModal.Close();
             SteamClient.Apps.RunGame(appId, "", -1, launchSource);
@@ -287,7 +301,7 @@ export default definePlugin(() => {
       console.log("Ending",e.unAppID);
       gameIsRunning = false;
 
-      const [uploadConfigAfterGame,uploadSaveAfterGame] = await Promise.all([getSetting(e.unAppID,"sync_config_after_game",true),getSetting(e.unAppID,"sync_save_after_game",true)])
+      const [uploadConfigAfterGame,uploadSaveAfterGame] = await Promise.all([getSetting(e.unAppID,"sync_config_after_game",false),getSetting(e.unAppID,"sync_save_after_game",false)])
 
       if(uploadConfigAfterGame || uploadSaveAfterGame) call<[push_config: boolean,push_save: boolean], void>("rclone_push",uploadConfigAfterGame,uploadSaveAfterGame);
     }

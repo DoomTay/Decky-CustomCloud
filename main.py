@@ -355,6 +355,11 @@ class Plugin:
 
     async def rclone_kill_rcd(self):
         await Rclone.stop_rcd()
+
+    async def rclone_kill_all_jobs(self):
+        if self.pull_task: self.pull_task.cancel()
+
+        await Rclone.kill_all_jobs()
             
     async def get_current_app_id(self):
         return self.current_app_id
@@ -398,7 +403,7 @@ class Plugin:
 
         self.loop.create_task(self.update_progress())
 
-    async def rclone_pull(self,pull_config,pull_save):
+    async def rclone_pull_coroutine(self,pull_config,pull_save):
         self.sync_progress = None
         self.status = "downloading"
 
@@ -426,6 +431,9 @@ class Plugin:
 
         self.loop.create_task(self.update_progress())
 
+    async def rclone_pull(self,pull_config,pull_save):
+        self.pull_task = self.loop.create_task(self.rclone_pull_coroutine(pull_config,pull_save))
+
     async def update_progress(self):
         async def get_progress_data():
             return await Rclone.rc_get_result("core/stats")
@@ -434,25 +442,27 @@ class Plugin:
             return await Rclone.rc_get_result("job/list")
         
         async def batch_job_status(jobs):
-            batch_jobs = []
+            if len(jobs) > 0:
+                batch_jobs = []
 
-            for job in jobs:
-                params = {
-                    "_path": "job/status",
-                    "jobid": job
-                }
+                for job in jobs:
+                    params = {
+                        "_path": "job/status",
+                        "jobid": job
+                    }
 
-                batch_jobs.append(params)
+                    batch_jobs.append(params)
 
-            batch_json = json.dumps({"inputs": batch_jobs})
+                batch_json = json.dumps({"inputs": batch_jobs})
 
-            return (await Rclone.rc_get_result("job/batch", ["--json", batch_json]))["results"]
+                return (await Rclone.rc_get_result("job/batch", ["--json", batch_json]))["results"]
+            else: return []
         
         await decky.emit("progress_event", None, None, "Task still in progress")
 
         decky.logger.info("Beginning check loop")
 
-        all_job_progress = Rclone.active_jobs
+        all_job_progress = len(Rclone.active_jobs)
         all_jobs_finished = all_job_progress == 0
 
         current_progress_data = await get_progress_data()
@@ -461,21 +471,21 @@ class Plugin:
         else: self.sync_progress = (current_progress_data["bytes"] / current_progress_data["totalBytes"]) * 100
 
         while all_jobs_finished is False:
-            all_job_progress = Rclone.active_jobs
+            all_job_progress = len(Rclone.active_jobs)
             all_jobs_finished = all_job_progress == 0
 
             if all_jobs_finished: break
 
             current_progress_data = await get_progress_data()
 
-            if current_progress_data["totalBytes"] == 0: self.sync_progress = None
+            if not current_progress_data.get("totalBytes") or (current_progress_data.get("totalBytes") and current_progress_data["totalBytes"] == 0): self.sync_progress = None
             else: self.sync_progress = (current_progress_data["bytes"] / current_progress_data["totalBytes"]) * 100
 
             await decky.emit("progress_event", None if self.sync_progress == None else min(self.sync_progress,99), current_progress_data["eta"], "Task still in progress")
 
             await asyncio.sleep(1)
         
-        finished_job_ids = (await get_jobs())["finishedIds"]
+        finished_job_ids = (await get_jobs()).get("finishedIds",[])
         finished_jobs = await batch_job_status(finished_job_ids)
         failed_jobs = [job for job in finished_jobs if job is not None and job.get("success") is not True and "job/" not in job.get("group") and job.get("group") != "customcloud_depth_check"]
 
