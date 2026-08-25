@@ -99,9 +99,7 @@ class Rclone:
                     filter_json=json.dumps({
                         "ExcludeRule": excludes
                     })
-                    args.extend([f"_filter={filter_json}"])
-
-                    args.extend([f"_group=customcloud_upload"])
+                    args.extend([f"_filter={filter_json}", f"_group=customcloud_upload"])
 
                     copy_job = await cls.rc_command("sync/sync", args)
                 else:
@@ -129,7 +127,11 @@ class Rclone:
                 if ":" in drive: drive = f"//?/{drive}/"
                 srcRemote = srcRemote.lstrip(r'\/').replace('\\', '/')
 
-                marker_job = await cls.rc_command("operations/copyfile", [f"srcFs={drive if drive else '/'}",  f"srcRemote={srcRemote}", "dstFs=customcloud-remote:", f"dstRemote={full_target_path}/.original-path", f"_group=customcloud_rcat"])
+                config_json = json.dumps({
+                    "CheckSum": True,
+                })
+
+                marker_job = await cls.rc_command("operations/copyfile", [f"srcFs={drive if drive else '/'}", f"srcRemote={srcRemote}", "dstFs=customcloud-remote:", f"dstRemote={full_target_path}/.original-path", f"_config={config_json}", f"_group=customcloud_rcat"])
 
                 await marker_job.wait()
 
