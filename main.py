@@ -282,7 +282,7 @@ class Plugin:
         if state is not None and result is not None:
             if result.strip() == "": result = "null"
 
-            config_params.extend([ "--continue", "--state", state, "--result", result])
+            config_params.extend(["--continue", "--state", state, "--result", result])
 
         if all is True: config_params.extend([ "--all"])
 
@@ -415,9 +415,9 @@ class Plugin:
 
         app_paths = self.app_settings.getSetting("paths",[])
 
-        decky.logger.info(f"Retrieving folder list")
-        folder_list = (await Rclone.rc_get_result("operations/list",[f"fs=customcloud-remote:", f"remote={game_backup_path}", f"_group=customcloud_list"]))["list"]
-        decky.logger.info(f"Folder list acquired")
+        decky.logger.info("Retrieving folder list")
+        folder_list = (await Rclone.rc_get_result("operations/list",[f"fs=customcloud-remote:", f"remote={game_backup_path}", f"_group=customcloud_list"])).get("list", [])
+        decky.logger.info("Folder list acquired")
 
         tasks = []
 
