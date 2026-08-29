@@ -8,6 +8,7 @@ import asyncio
 import requests
 import json
 import re
+import sys
 import zipfile
 import tempfile
 import yaml
@@ -19,6 +20,7 @@ settings_dir = os.environ["DECKY_PLUGIN_SETTINGS_DIR"]
 log_dir = os.environ["DECKY_PLUGIN_LOG_DIR"]
 steam_dir = os.path.join(os.environ["HOME"],".local","share","Steam")
 rclone_path = os.path.join(runtime_dir,"rclone")
+is_linux = sys.platform == "linux"
 
 class Plugin:
     async def update_rclone(self):
@@ -161,7 +163,7 @@ class Plugin:
 
             identifying_regex = rf"^\"?{self.app_name}\"?:$" if self.app_is_shortcut else rf"steam:\n\s+id:\s?{self.current_app_id}$"
 
-            possible_entry = next((game for game in matches if bool(re.search(identifying_regex, game, flags=re.IGNORECASE))), None)
+            possible_entry = next((game for game in matches if bool(re.search(identifying_regex, game, flags=re.IGNORECASE | re.MULTILINE))), None)
 
             if(possible_entry):
                 parsed_entry = yaml.safe_load(possible_entry)
@@ -246,7 +248,7 @@ class Plugin:
         self.app_is_installed = (not self.app_is_shortcut and appInfo['iInstallFolder'] != -1) or self.app_is_shortcut
         self.app_install_path = appInfo['strInstallFolder']
         self.steamid64 = int(appInfo['strOwnerSteamID'])
-        self.is_native_linux = "steamlinuxruntime" in appInfo['strCompatToolName'] or (self.app_is_shortcut and appInfo['strCompatToolName'] == "")
+        self.is_native_linux = "steamlinuxruntime" in appInfo['strCompatToolName'] or (self.app_is_shortcut and appInfo['strCompatToolName'] == "" and is_linux)
         self.steamid3 = self.steamid64 - 76561197960265728
 
         cloud_enabled_for_game = appInfo['bCloudEnabledForApp']
