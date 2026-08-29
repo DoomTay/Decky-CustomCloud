@@ -108,17 +108,19 @@ class Plugin:
 
         return result
     
-    def resolve_path(self, path, is_native_linux):
+    def resolve_path(self, path, app_is_native_linux):
         proton_prefix = self.get_prefix_path()
         proton_user_folder = os.path.join(proton_prefix,"users","steamuser")
 
         path_variable_table = {
-            "<home>": os.environ["HOME"] if (is_native_linux or not is_linux) else proton_user_folder,
+            "<home>": os.environ["HOME"] if (app_is_native_linux or not is_linux) else proton_user_folder,
             "C:/Users/<osUserName>": proton_user_folder if is_linux else os.path.join("C:\\","Users",os.environ["USER"]),
             "<winDocuments>": os.path.join(proton_user_folder,"Documents") if is_linux else os.path.expandvars(self.hkcu_lookup("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\User Shell Folders","Personal")),
             "<winAppData>": os.path.join(proton_user_folder,"AppData","Roaming") if is_linux else os.environ["APPDATA"],
             "<winDir>": os.path.join(proton_prefix,"windows") if is_linux else os.environ["WINDIR"],
             "<winLocalAppData>": os.path.join(proton_user_folder,"AppData","Local") if is_linux else os.environ["LOCALAPPDATA"],
+            "<winPublic>": os.path.join(proton_prefix,"users","Public") if is_linux else os.environ["PUBLIC"],
+            "<winProgramData>": os.path.join(proton_prefix,"ProgramData") if is_linux else os.environ["PROGRAMDATA"],
             "<xdgConfig>": os.path.join(os.environ["HOME"],".config"),
             "<xdgData>": os.path.join(os.environ["HOME"],".local", "share"),
             "<storeUserId>": str(self.steamid3) if ("<root>" in path or steam_dir in path) and "userdata" in path else str(self.steamid64),
@@ -213,12 +215,12 @@ class Plugin:
         decky.logger.info(f"App found under {manifest_entry}. Collating paths.")
 
         for possible_path,path_data in paths.items():
-            resolved_path = self.resolve_path(possible_path, self.is_native_linux)
+            resolved_path = self.resolve_path(possible_path, self.app_is_native_linux)
 
             if not self.app_is_installed and "UNINSTALLED_GAME_PATH" in resolved_path:
                 continue
 
-            if any(((when.get("os") == "linux" and self.is_native_linux) or (when.get("os") == "windows" and not self.is_native_linux) or when.get("store") == "steam") for when in path_data["when"]):
+            if any(((when.get("os") == "linux" and self.app_is_native_linux) or (when.get("os") == "windows" and not self.app_is_native_linux) or when.get("store") == "steam") for when in path_data["when"]):
                 whens = path_data["when"]
                 store_agnostic = any(not when.get("store") for when in whens)
                 steam_specific = any(when.get("store") and "steam" in when.get("store") for when in whens)
@@ -260,7 +262,7 @@ class Plugin:
         self.app_is_installed = (not self.app_is_shortcut and appInfo['iInstallFolder'] != -1) or self.app_is_shortcut
         self.app_install_path = appInfo['strInstallFolder']
         self.steamid64 = int(appInfo['strOwnerSteamID'])
-        self.is_native_linux = "steamlinuxruntime" in appInfo['strCompatToolName'] or (self.app_is_shortcut and appInfo['strCompatToolName'] == "" and is_linux)
+        self.app_is_native_linux = "steamlinuxruntime" in appInfo['strCompatToolName'] or (self.app_is_shortcut and appInfo['strCompatToolName'] == "" and is_linux)
         self.steamid3 = self.steamid64 - 76561197960265728
 
         cloud_enabled_for_game = appInfo['bCloudEnabledForApp']
