@@ -114,8 +114,8 @@ class Plugin:
 
         path_variable_table = {
             "<home>": os.environ["HOME"] if (is_native_linux or not is_linux) else proton_user_folder,
-            "C:/Users/<osUserName>": proton_user_folder if is_linux else os.path.join("C","Users",os.environ["USER"]),
-            "<winDocuments>": os.path.join(proton_user_folder,"Documents") if is_linux else self.hkcu_lookup("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\User Shell Folders","Personal"),
+            "C:/Users/<osUserName>": proton_user_folder if is_linux else os.path.join("C:\\","Users",os.environ["USER"]),
+            "<winDocuments>": os.path.join(proton_user_folder,"Documents") if is_linux else os.path.expandvars(self.hkcu_lookup("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\User Shell Folders","Personal")),
             "<winAppData>": os.path.join(proton_user_folder,"AppData","Roaming") if is_linux else os.environ["APPDATA"],
             "<winDir>": os.path.join(proton_prefix,"windows") if is_linux else os.environ["WINDIR"],
             "<winLocalAppData>": os.path.join(proton_user_folder,"AppData","Local") if is_linux else os.environ["LOCALAPPDATA"],
