@@ -182,12 +182,20 @@ class Plugin:
             if(possible_entry):
                 parsed_entry = yaml.safe_load(possible_entry)
 
+                found_entry = next(iter(parsed_entry.values()))
+
+                entry_alias = found_entry.get("alias")
+
+                if entry_alias is not None:
+                    decky.logger.info(f"Alias for {self.app_name} found. Pulling data from {entry_alias}")
+                    alias_pointer = next((game for game in matches if bool(re.search(rf"^\"?{entry_alias}\"?:$", game, flags=re.MULTILINE))), None)
+                    parsed_entry = yaml.safe_load(alias_pointer)
+                    found_entry = next(iter(parsed_entry.values()))
+
                 manifest_entry = next(iter(parsed_entry.keys()))
                 default_game_folder = re.sub(r'[<>:\"\/\|\?*]', '', manifest_entry)
 
                 self.app_settings.setSetting("game_folder", default_game_folder)
-                    
-                found_entry = next(iter(parsed_entry.values()))
             else:
                 decky.logger.info(f"Could not find entry for app ID {self.current_app_id}")
 
