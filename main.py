@@ -9,6 +9,7 @@ import requests
 import json
 import re
 import sys
+import winreg
 import zipfile
 import tempfile
 import yaml
@@ -18,9 +19,9 @@ from settings import SettingsManager
 runtime_dir = os.environ["DECKY_PLUGIN_RUNTIME_DIR"]
 settings_dir = os.environ["DECKY_PLUGIN_SETTINGS_DIR"]
 log_dir = os.environ["DECKY_PLUGIN_LOG_DIR"]
-steam_dir = os.path.join(os.environ["HOME"],".local","share","Steam")
 rclone_path = os.path.join(runtime_dir,"rclone")
 is_linux = sys.platform == "linux"
+steam_dir = ""
 
 class Plugin:
     async def update_rclone(self):
@@ -99,17 +100,25 @@ class Plugin:
 
     async def get_status(self):
         return self.status
+
+    def hkcu_lookup(self,path,query):
+        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, path)
+        result, _ = winreg.QueryValueEx(key, query)
+        winreg.CloseKey(key)
+
+        return result
     
     def resolve_path(self, path, is_native_linux):
         proton_prefix = self.get_prefix_path()
+        proton_user_folder = os.path.join(proton_prefix,"users","steamuser")
 
         path_variable_table = {
-            "<home>": os.environ["HOME"] if is_native_linux else os.path.join(proton_prefix),
-            "C:/Users/<osUserName>": os.path.join(proton_prefix),
-            "<winDocuments>": os.path.join(proton_prefix,"Documents"),
-            "<winAppData>": os.path.join(proton_prefix,"AppData","Roaming"),
-            "<winDir>": os.path.join(steam_dir,"steamapps","compatdata",str(self.current_app_id),"pfx","drive_c","windows"),
-            "<winLocalAppData>": os.path.join(proton_prefix,"AppData","Local"),
+            "<home>": os.environ["HOME"] if (is_native_linux or not is_linux) else proton_user_folder,
+            "C:/Users/<osUserName>": proton_user_folder if is_linux else os.path.join("C","Users",os.environ["USER"]),
+            "<winDocuments>": os.path.join(proton_user_folder,"Documents") if is_linux else self.hkcu_lookup("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\User Shell Folders","Personal"),
+            "<winAppData>": os.path.join(proton_user_folder,"AppData","Roaming") if is_linux else os.environ["APPDATA"],
+            "<winDir>": os.path.join(proton_prefix,"windows") if is_linux else os.environ["WINDIR"],
+            "<winLocalAppData>": os.path.join(proton_user_folder,"AppData","Local") if is_linux else os.environ["LOCALAPPDATA"],
             "<xdgConfig>": os.path.join(os.environ["HOME"],".config"),
             "<xdgData>": os.path.join(os.environ["HOME"],".local", "share"),
             "<storeUserId>": str(self.steamid3),
@@ -124,11 +133,14 @@ class Plugin:
         return os.path.normpath(path)
 
     def get_prefix_path(self):
-        return os.path.join(steam_dir,"steamapps","compatdata",str(self.current_app_id),"pfx","drive_c","users","steamuser")
+        return os.path.join(steam_dir,"steamapps","compatdata",str(self.current_app_id),"pfx","drive_c")
 
     # Asyncio-compatible long-running code, executed in a task when the plugin is loaded
     async def _main(self):
+        global steam_dir
+
         self.loop = asyncio.get_event_loop()
+        steam_dir = os.path.join(os.environ["HOME"],".local","share","Steam") if is_linux else self.hkcu_lookup("SOFTWARE\\Valve\\Steam","SteamPath")
         decky.logger.info("Hello World!")
 
         self.global_settings = SettingsManager(name="settings", settings_directory=settings_dir)
