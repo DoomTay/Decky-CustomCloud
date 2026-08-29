@@ -121,7 +121,7 @@ class Plugin:
             "<winLocalAppData>": os.path.join(proton_user_folder,"AppData","Local") if is_linux else os.environ["LOCALAPPDATA"],
             "<xdgConfig>": os.path.join(os.environ["HOME"],".config"),
             "<xdgData>": os.path.join(os.environ["HOME"],".local", "share"),
-            "<storeUserId>": str(self.steamid3),
+            "<storeUserId>": str(self.steamid3) if ("<root>" in path or steam_dir in path) and "userdata" in path else str(self.steamid64),
             "<base>": self.app_install_path or "UNINSTALLED_GAME_PATH",
             "<root>": steam_dir
         }
