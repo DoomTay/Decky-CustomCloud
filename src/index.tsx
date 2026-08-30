@@ -230,7 +230,7 @@ function CloudDownloadModal({downloadConfigBeforeGame,downloadSaveBeforeGame,onC
           strDescription={<div style = {{
                     whiteSpace: "pre-wrap",
                     wordWrap: "break-word"
-                }}>Download finished with one or more error, including:<br /><br />
+                }}>Download finished with one or more errors, including:<br /><br />
           {error}<br /><br />
           Your data may not have been downloaded successfully. Continue anyway?</div>}
           onOK={onComplete}

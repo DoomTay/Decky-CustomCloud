@@ -9,9 +9,9 @@ import {
   ConfirmModal,
   ButtonItem,
   SteamSpinner,
-  Field,
+  Field
 } from "@decky/ui";
-import { FaPlus, FaTrash } from "react-icons/fa";
+import { FaInfoCircle, FaPlus, FaTrash } from "react-icons/fa";
 import { Fragment } from "react/jsx-runtime";
 import { InitialSettings, setSetting } from "./customcloud-config";
 
@@ -99,6 +99,37 @@ export default function GamePaths({initialSettings, setInitialSettings, loadingP
         )
     }
 
+    function showPlaceholderInfo()
+    {
+        showModal(
+            <ConfirmModal
+            bAlertDialog={true}
+            strTitle="Path placeholders"
+            strDescription={<div style = {{
+                whiteSpace: "pre-wrap",
+                wordWrap: "break-word"
+            }}>To ensure config and save data is downloaded to the right places between devices, it is recommended to add placeholders for common roots and other variables.<br /><br />
+
+            <code>&lt;home&gt;</code> - Home directory, e.g. /home/deck<br />
+            <code>C:/Users/&lt;osUserName&gt;</code> - A more hardcoded path to a Windows user folder, using your OS profile username or in the case of Proton, "steamuser".<br />
+            <code>&lt;winDocuments&gt;</code> - Windows Documents folder. Resolves to your actual Documents folder in Windows, or with Proton, the Documents folder under the prefix<br />
+            <code>&lt;winAppData&gt;</code> - AppData path. Usually resolves to <code>C:\Users\(user)\AppData\Roaming</code><br />
+            <code>&lt;winDir&gt;</code> - The path of the Windows folder, usually <code>C:\Windows</code><br />
+            <code>&lt;winLocalAppData&gt;</code> - Local AppData path. Usually resolves to <code>C:\Users\(user)\AppData\Local</code><br />
+            <code>&lt;winPublic&gt;</code> - "Public" Windows user folder resolves to <code>C:\Users\Public</code><br />
+            <code>&lt;winProgramData&gt;</code> - Windows ProgramData folder. Normally resolves to <code>C:\ProgramData</code><br />
+            <code>&lt;xdgConfig&gt;</code> - Linux user config folder, e.g. <code>/home/deck/.config</code><br />
+            <code>&lt;xdgData&gt;</code> - Linux user data folder, e.g. <code>/home/deck/.local/share</code><br />
+            <code>&lt;storeUserId&gt;</code> - Your numerical Steam ID. If it is under Steam's "userdata" folder, it will resolve to your shorter steamID3. Otherwise, it will be your 17-digit steamID64<br />
+            <code>&lt;base&gt;</code> - The full path where the game itself is installed to. Can not be automatically resolved with non-Steam shortcuts.<br />
+            <code>&lt;root&gt;</code> - The path where Steam itself is installed, e.g. /home/deck/.local/share/Steam or C:\Program Files\Steam<br />
+            <br />
+            On a Windows device, most of these will resolve to your actual paths on Windows. On a SteamOS/Linux device, they will instead resolve to Proton equivalents under a Proton prefix.</div>}
+            onOK={() => {}}
+            />
+        )
+    }
+
     if(loadingPaths) return <SteamSpinner />
 
     return (
@@ -147,13 +178,13 @@ export default function GamePaths({initialSettings, setInitialSettings, loadingP
         style=
         {{
             display: "grid",
-            gridTemplateColumns: "1fr 45px",
+            gridTemplateColumns: "1fr 45px 45px",
             gap: "8px"
         }}>
         <Field label="Cloud game folder">
             <div
             style={{
-                minWidth: "var(--gamepad-field-control-min-width, 230px)"
+                minWidth: "var(--gamepad-field-control-min-width, 205px)"
             }}>
             <TextField
                 defaultValue={initialSettings["game_folder"]}
@@ -163,6 +194,16 @@ export default function GamePaths({initialSettings, setInitialSettings, loadingP
                     }} />
             </div>
         </Field>
+        <DialogButton
+        onClick={showPlaceholderInfo}
+        style={{
+            width: "45px",
+            paddingLeft: "15px",
+            paddingRight: "15px",
+            minWidth: 0
+        }}>
+            <FaInfoCircle />
+        </DialogButton>
         <DialogButton
         onClick={addPath}
         disabled={!appIsInstalled}
