@@ -9,11 +9,11 @@ import requests
 import json
 import re
 import sys
-import winreg
 import zipfile
 import tempfile
 import yaml
 from rclone import Rclone
+from path_helper import PathHelper
 from settings import SettingsManager
 
 runtime_dir = os.environ["DECKY_PLUGIN_RUNTIME_DIR"]
@@ -21,7 +21,6 @@ settings_dir = os.environ["DECKY_PLUGIN_SETTINGS_DIR"]
 log_dir = os.environ["DECKY_PLUGIN_LOG_DIR"]
 rclone_path = os.path.join(runtime_dir,"rclone")
 is_linux = sys.platform == "linux"
-steam_dir = ""
 
 class Plugin:
     async def update_rclone(self):
@@ -101,48 +100,9 @@ class Plugin:
     async def get_status(self):
         return self.status
 
-    def hkcu_lookup(self,path,query):
-        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, path)
-        result, _ = winreg.QueryValueEx(key, query)
-        winreg.CloseKey(key)
-
-        return result
-    
-    def resolve_path(self, path, app_is_native_linux):
-        proton_prefix = self.get_prefix_path()
-        proton_user_folder = os.path.join(proton_prefix,"users","steamuser")
-
-        path_variable_table = {
-            "<home>": os.environ["HOME"] if (app_is_native_linux or not is_linux) else proton_user_folder,
-            "C:/Users/<osUserName>": proton_user_folder if is_linux else os.path.join("C:\\","Users",os.environ["USER"]),
-            "<winDocuments>": os.path.join(proton_user_folder,"Documents") if is_linux else os.path.expandvars(self.hkcu_lookup("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\User Shell Folders","Personal")),
-            "<winAppData>": os.path.join(proton_user_folder,"AppData","Roaming") if is_linux else os.environ["APPDATA"],
-            "<winDir>": os.path.join(proton_prefix,"windows") if is_linux else os.environ["WINDIR"],
-            "<winLocalAppData>": os.path.join(proton_user_folder,"AppData","Local") if is_linux else os.environ["LOCALAPPDATA"],
-            "<winPublic>": os.path.join(proton_prefix,"users","Public") if is_linux else os.environ["PUBLIC"],
-            "<winProgramData>": os.path.join(proton_prefix,"ProgramData") if is_linux else os.environ["PROGRAMDATA"],
-            "<xdgConfig>": os.path.join(os.environ["HOME"],".config"),
-            "<xdgData>": os.path.join(os.environ["HOME"],".local", "share"),
-            "<storeUserId>": str(self.steamid3) if ("<root>" in path or steam_dir in path) and "userdata" in path else str(self.steamid64),
-            "<base>": self.app_install_path or "UNINSTALLED_GAME_PATH",
-            "<root>": steam_dir
-        }
-
-        for placeholder in path_variable_table:
-            if placeholder in path:
-                path = path.replace(placeholder,path_variable_table[placeholder])
-
-        return os.path.normpath(path)
-
-    def get_prefix_path(self):
-        return os.path.join(steam_dir,"steamapps","compatdata",str(self.current_app_id),"pfx","drive_c")
-
     # Asyncio-compatible long-running code, executed in a task when the plugin is loaded
     async def _main(self):
-        global steam_dir
-
         self.loop = asyncio.get_event_loop()
-        steam_dir = os.path.join(os.environ["HOME"],".local","share","Steam") if is_linux else self.hkcu_lookup("SOFTWARE\\Valve\\Steam","SteamPath")
         decky.logger.info("Hello World!")
 
         self.global_settings = SettingsManager(name="settings", settings_directory=settings_dir)
@@ -223,9 +183,7 @@ class Plugin:
         decky.logger.info(f"App found under {manifest_entry}. Collating paths.")
 
         for possible_path,path_data in paths.items():
-            resolved_path = self.resolve_path(possible_path, self.app_is_native_linux)
-
-            if not self.app_is_installed and "UNINSTALLED_GAME_PATH" in resolved_path:
+            if not self.app_is_installed and "<base>" in possible_path:
                 continue
 
             if any(((when.get("os") == "linux" and self.app_is_native_linux) or (when.get("os") == "windows" and not self.app_is_native_linux) or when.get("store") == "steam") for when in path_data["when"]):
@@ -242,7 +200,7 @@ class Plugin:
                     if "config" in path_data["tags"] and "save" not in path_data["tags"]: path_type = "config"
                     elif "save" in path_data["tags"] and "config" not in path_data["tags"]: path_type = "save"
 
-                default_paths.append({"path": resolved_path, "type": path_type})
+                default_paths.append({"path": possible_path, "type": path_type})
 
         decky.logger.info(f"Paths found. Added to defaults.")
 
@@ -262,16 +220,27 @@ class Plugin:
         self.global_settings.setSetting(key, value)
         self.global_settings.commit()
 
+    async def resolve_path(self, path):
+        return PathHelper.resolve_path(path)
+    
+    async def update_app_info(self,appInfo):
+        current_app_id = appInfo['unAppID']
+        app_is_shortcut = 'strShortcutStartDir' in appInfo
+        app_is_native_linux = "steamlinuxruntime" in appInfo['strCompatToolName'] or (app_is_shortcut and appInfo['strCompatToolName'] == "" and is_linux)
+        app_install_path = appInfo['strInstallFolder']
+        steamid64 = int(appInfo['strOwnerSteamID'])
+
+        PathHelper.update_app_info(current_app_id,app_install_path,app_is_native_linux,steamid64)
+    
     async def get_app_settings(self,appInfo):
         self.app_settings = SettingsManager(name=f"settings_{appInfo['unAppID']}", settings_directory=settings_dir)
         self.current_app_id = appInfo['unAppID']
         self.app_name = appInfo['strDisplayName']
         self.app_is_shortcut = 'strShortcutStartDir' in appInfo
         self.app_is_installed = (not self.app_is_shortcut and appInfo['iInstallFolder'] != -1) or self.app_is_shortcut
-        self.app_install_path = appInfo['strInstallFolder']
-        self.steamid64 = int(appInfo['strOwnerSteamID'])
         self.app_is_native_linux = "steamlinuxruntime" in appInfo['strCompatToolName'] or (self.app_is_shortcut and appInfo['strCompatToolName'] == "" and is_linux)
-        self.steamid3 = self.steamid64 - 76561197960265728
+
+        await self.update_app_info(appInfo)
 
         cloud_enabled_for_game = appInfo['bCloudEnabledForApp']
 

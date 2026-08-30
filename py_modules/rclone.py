@@ -3,6 +3,7 @@ import asyncio
 import json
 import os
 import tempfile
+from path_helper import PathHelper
 from datetime import datetime
 
 runtime_dir = os.environ["DECKY_PLUGIN_RUNTIME_DIR"]
@@ -66,22 +67,29 @@ class Rclone:
 
         await asyncio.sleep(0.5)
 
+    @staticmethod
+    def split_filter(path):
+        normalized_path = path.replace("\\","/")
+
+        first_asterisk_index = normalized_path.find("*")
+
+        end_of_base_path = normalized_path.rfind("/",0,first_asterisk_index)
+
+        base_path = normalized_path[:end_of_base_path]
+        filter = normalized_path[end_of_base_path:]
+        if filter.endswith("*"): filter += "*"
+
+        return base_path,filter
+    
     @classmethod
     async def push_paths(cls,paths,game_backup_path,folder_prefix,exclude_paths=[]):
         async def process_single_path(full_target_path,path):
             decky.logger.info(f"Processing {path['path']}")
 
+            resolved_path = PathHelper.resolve_path(path['path'])
+
             if "*" in path["path"]:
-                normalized_path = path["path"].replace("\\","/")
-
-                first_asterisk_index = normalized_path.find("*")
-
-                end_of_base_path = normalized_path.rfind("/",0,first_asterisk_index)
-
-                base_path = normalized_path[:end_of_base_path]
-                filter = normalized_path[end_of_base_path:]
-
-                if filter.endswith("*"): filter += "*"
+                base_path, filter = cls.split_filter(resolved_path)
 
                 filter_json=json.dumps({
                     "IncludeRule": [f"{filter}"],
@@ -90,11 +98,11 @@ class Rclone:
                 copy_job = await cls.rc_command("sync/sync", [f"srcFs={base_path}", f"dstFs=customcloud-remote:{full_target_path}", f"_filter={filter_json}", f"_group=customcloud_upload"])
 
             else:
-                excludes = get_excludes(path["path"])
+                excludes = get_excludes(resolved_path)
                 excludes.append("/.original-path")
 
-                if os.path.isdir(path['path']):
-                    args = [f"srcFs={path['path']}", f"dstFs=customcloud-remote:{full_target_path}"]
+                if os.path.isdir(resolved_path):
+                    args = [f"srcFs={resolved_path}", f"dstFs=customcloud-remote:{full_target_path}"]
 
                     filter_json=json.dumps({
                         "ExcludeRule": excludes
@@ -103,9 +111,9 @@ class Rclone:
 
                     copy_job = await cls.rc_command("sync/sync", args)
                 else:
-                    _, filename = os.path.split(path['path'])
+                    _, filename = os.path.split(resolved_path)
 
-                    drive, srcRemote = os.path.splitdrive(path['path'])
+                    drive, srcRemote = os.path.splitdrive(resolved_path)
                     if ":" in drive: drive = f"//?/{drive}/"
                     srcRemote = srcRemote.lstrip(r'\/').replace('\\', '/')
 
@@ -169,7 +177,13 @@ class Rclone:
                 if ":" in drive: drive = f"//?/{drive}/"
                 dstRemote = dstRemote.lstrip(r'\/').replace('\\', '/')
 
-                marker_job = await cls.rc_command("operations/copyfile", ["srcFs=customcloud-remote:",  f"srcRemote={folder['Path']}/.original-path", f"dstFs={drive if drive else '/'}", f"dstRemote={dstRemote}/.original-path", f"_group=customcloud_cat"])
+                marker_config_json = json.dumps({
+                    "NoUpdateModtime": True,
+                    "IgnoreTimes": True,
+                    "NoCheckDest": True
+                })
+
+                marker_job = await cls.rc_command("operations/copyfile", ["srcFs=customcloud-remote:",  f"srcRemote={folder['Path']}/.original-path", f"dstFs={drive if drive else '/'}", f"dstRemote={dstRemote}/.original-path", f"_config={marker_config_json}", f"_group=customcloud_cat"])
 
                 await marker_job.wait()
 
@@ -197,21 +211,18 @@ class Rclone:
             if original_path == "": return
             decky.logger.info(f"Got original path for {folder['Path']}. Beginning download")
 
+            resolved_path = PathHelper.resolve_path(original_path)
+
+            config_json = json.dumps({
+                "NoUpdateDirModtime": True,
+            })
+            
             filter_rules = {
                 "ExcludeRule": ["/.original-path"],
             }
             
-            if "*" in original_path:
-                normalized_path = original_path.replace("\\","/")
-
-                first_asterisk_index = normalized_path.find("*")
-
-                end_of_base_path = normalized_path.rfind("/",0,first_asterisk_index)
-
-                base_path = normalized_path[:end_of_base_path]
-                filter = normalized_path[end_of_base_path:]
-
-                if filter.endswith("*"): filter += "*"
+            if "*" in resolved_path:
+                base_path, filter = cls.split_filter(resolved_path)
 
                 filter_rules["IncludeRule"] = [f"{filter}"]
 
@@ -220,12 +231,13 @@ class Rclone:
                 sync_job = await cls.rc_command("sync/sync", [f"srcFs=customcloud-remote:{folder['Path']}", f"dstFs={base_path}", f"_filter={filter_json}", f"_group=customcloud_download"])
             else:
                 if (await remote_is_dir(folder['Path'])):
-                    args = [f"srcFs=customcloud-remote:{folder['Path']}", f"dstFs={original_path}"]
+                    args = [f"srcFs=customcloud-remote:{folder['Path']}", f"dstFs={resolved_path}"]
 
                     for exclude_path in exclude_paths:
-                        if original_path not in exclude_path: continue
+                        resolved_exclude_path = PathHelper.resolve_path(exclude_path)
+                        if resolved_path not in resolved_exclude_path: continue
 
-                        relative_exclude_path = os.path.relpath(exclude_path,original_path)
+                        relative_exclude_path = os.path.relpath(resolved_exclude_path,resolved_path)
 
                         path_split = relative_exclude_path.split(os.path.sep)
                         path_depths = ["/".join(path_split[:i + 1]) for i,_ in enumerate(path_split)]
@@ -249,7 +261,7 @@ class Rclone:
                         cutoff_index, _ = next((i,depth) for i,depth in enumerate(depth_check_result) if depth.get("status") == 404 or len(depth.get("list",[])) == 0)
                         cutoff_point = path_depths[cutoff_index]
 
-                        if os.path.isdir((os.path.join(original_path,cutoff_point))): cutoff_point += "/**"
+                        if os.path.isdir((os.path.join(resolved_path,cutoff_point))): cutoff_point += "/**"
 
                         filter_rules["ExcludeRule"].append(f"/{cutoff_point}")
 
@@ -259,10 +271,12 @@ class Rclone:
 
                     sync_job = await cls.rc_command("sync/sync", args)
                 else:
-                    _, filename = os.path.split(original_path)
+                    _, filename = os.path.split(resolved_path)
 
-                    drive, dstRemote = os.path.splitdrive(original_path)
+                    drive, dstRemote = os.path.splitdrive(resolved_path)
                     if ":" in drive: drive = f"//?/{drive}/"
+
+                    dstRemote = dstRemote.replace("\\","/")
 
                     args = ["srcFs=customcloud-remote:",f"srcRemote={folder['Path']}/{filename}", f"dstFs={drive if drive else '/'}", f"dstRemote={dstRemote}"]
 

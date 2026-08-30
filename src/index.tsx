@@ -31,6 +31,8 @@ const updateRclone = callable<[], {success: boolean, status_code: number, status
 const getSetting = callable<[appId: number, setting: string, default_value: any], any>("get_app_setting");
 let gameIsRunning = false;
 
+declare const appDetailsStore: any;
+
 function Content() {
   const [downloadingRclone, setDownloadingRclone] = useState<boolean>(false);
   const DEFAULT_CLOUD_DIRECTORY = "CustomCloud-Backup"
@@ -211,7 +213,7 @@ function CloudDownloadModal({downloadConfigBeforeGame,downloadSaveBeforeGame,onC
     }
   },[])
 
-  function updateProgress(newProgress: number,eta: number, message: string,error: string)
+  function updateProgress(newProgress: number,eta: number,message: string,error: string)
   {
     if(downloadCancelled.current == true) return;
     setProgress(newProgress);
@@ -289,6 +291,10 @@ export default definePlugin(() => {
     {
       gameIsRunning = true;
       const appIdNum = getRealAppID(Number(appId));
+
+      const details = await appDetailsStore.RequestAppDetails(appIdNum);
+      call<[appDetails: any], void>("update_app_info",details);
+
       console.log("Getting preferences for appid",appIdNum);
       const [downloadConfigBeforeGame,downloadSaveBeforeGame] = await Promise.all([getSetting(appIdNum,"sync_config_before_game",false),getSetting(appIdNum,"sync_save_before_game",false)]);
       if(downloadConfigBeforeGame || downloadSaveBeforeGame)
@@ -320,6 +326,9 @@ export default definePlugin(() => {
     {
       console.log("Ending",e.unAppID);
       gameIsRunning = false;
+
+      const details = await appDetailsStore.RequestAppDetails(e.unAppID);
+      call<[appDetails: any], void>("update_app_info",details);
 
       const [uploadConfigAfterGame,uploadSaveAfterGame] = await Promise.all([getSetting(e.unAppID,"sync_config_after_game",false),getSetting(e.unAppID,"sync_save_after_game",false)])
 
