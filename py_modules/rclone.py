@@ -2,6 +2,7 @@ import decky
 import asyncio
 import json
 import os
+import glob
 import tempfile
 from path_helper import PathHelper
 from datetime import datetime
@@ -125,38 +126,41 @@ class Rclone:
 
             await copy_job.wait()
 
-            decky.logger.info(f"Creating path marker in {full_target_path}")
-            
-            with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False) as marker_file:
-                marker_file.write(path["path"])
-                marker_file.close()
-
-                drive, srcRemote = os.path.splitdrive(marker_file.name)
-                if ":" in drive: drive = f"//?/{drive}/"
-                srcRemote = srcRemote.lstrip(r'\/').replace('\\', '/')
-
-                config_json = json.dumps({
-                    "CheckSum": True,
-                })
-
-                marker_job = await cls.rc_command("operations/copyfile", [f"srcFs={drive if drive else '/'}", f"srcRemote={srcRemote}", "dstFs=customcloud-remote:", f"dstRemote={full_target_path}/.original-path", f"_config={config_json}", f"_group=customcloud_rcat"])
-
-                await marker_job.wait()
-
-                if os.path.exists(marker_file.name):
-                    os.remove(marker_file.name)
+            if glob.glob(resolved_path):
+                decky.logger.info(f"Creating path marker in {full_target_path}")
                 
-                decky.logger.info(f"Path marker created")
+                with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False) as marker_file:
+                    marker_file.write(path["path"])
+                    marker_file.close()
+
+                    drive, srcRemote = os.path.splitdrive(marker_file.name)
+                    if ":" in drive: drive = f"//?/{drive}/"
+                    srcRemote = srcRemote.lstrip(r'\/').replace('\\', '/')
+
+                    config_json = json.dumps({
+                        "CheckSum": True
+                    })
+
+                    marker_job = await cls.rc_command("operations/copyfile", [f"srcFs={drive if drive else '/'}", f"srcRemote={srcRemote}", "dstFs=customcloud-remote:", f"dstRemote={full_target_path}/.original-path", f"_config={config_json}", f"_group=customcloud_rcat"])
+
+                    await marker_job.wait()
+
+                    if os.path.exists(marker_file.name):
+                        os.remove(marker_file.name)
+                    
+                    decky.logger.info(f"Path marker created")
+            else: decky.logger.warning(f"{resolved_path} does not exist on local disk")
 
         def get_excludes(original_path):
             relative_exclude_paths = []
 
             for exclude_path in exclude_paths:
-                if original_path not in exclude_path: continue
+                resolved_exclude_path = PathHelper.resolve_path(exclude_path)
+                if original_path not in resolved_exclude_path: continue
 
-                relative_exclude_path = os.path.relpath(exclude_path,original_path)
+                relative_exclude_path = os.path.relpath(resolved_exclude_path,original_path)
 
-                if os.path.isdir(exclude_path): relative_exclude_path += "/**"
+                if os.path.isdir(resolved_exclude_path): relative_exclude_path += "/**"
 
                 relative_exclude_paths.append(f"/{relative_exclude_path}".replace("\\","/"))
 
