@@ -112,13 +112,11 @@ class Rclone:
 
                     copy_job = await cls.rc_command("sync/sync", args)
                 else:
-                    _, filename = os.path.split(resolved_path)
+                    drive, src_remote = os.path.splitdrive(resolved_path)
+                    filename = os.path.basename(src_remote)
+                    src_remote = src_remote.lstrip(r'\/').replace('\\', '/')
 
-                    drive, srcRemote = os.path.splitdrive(resolved_path)
-                    if ":" in drive: drive = f"//?/{drive}/"
-                    srcRemote = srcRemote.lstrip(r'\/').replace('\\', '/')
-
-                    args = [f"srcFs={drive if drive else '/'}", f"srcRemote={srcRemote}", "dstFs=customcloud-remote:",f"dstRemote={full_target_path}/{filename}"]
+                    args = [f"srcFs={f'//?/{drive}/' if ':' in drive else '/'}", f"srcRemote={src_remote}", "dstFs=customcloud-remote:",f"dstRemote={full_target_path}/{filename}"]
 
                     args.extend([f"_group=customcloud_upload"])
 
@@ -134,14 +132,13 @@ class Rclone:
                     marker_file.close()
 
                     drive, srcRemote = os.path.splitdrive(marker_file.name)
-                    if ":" in drive: drive = f"//?/{drive}/"
                     srcRemote = srcRemote.lstrip(r'\/').replace('\\', '/')
 
                     config_json = json.dumps({
                         "CheckSum": True
                     })
 
-                    marker_job = await cls.rc_command("operations/copyfile", [f"srcFs={drive if drive else '/'}", f"srcRemote={srcRemote}", "dstFs=customcloud-remote:", f"dstRemote={full_target_path}/.original-path", f"_config={config_json}", f"_group=customcloud_rcat"])
+                    marker_job = await cls.rc_command("operations/copyfile", [f"srcFs={f'//?/{drive}/' if ':' in drive else '/'}", f"srcRemote={srcRemote}", "dstFs=customcloud-remote:", f"dstRemote={full_target_path}/.original-path", f"_config={config_json}", f"_group=customcloud_rcat"])
 
                     await marker_job.wait()
 
@@ -178,7 +175,6 @@ class Rclone:
         async def get_original_path(folder):
             with tempfile.TemporaryDirectory() as marker_dir:
                 drive, dstRemote = os.path.splitdrive(marker_dir)
-                if ":" in drive: drive = f"//?/{drive}/"
                 dstRemote = dstRemote.lstrip(r'\/').replace('\\', '/')
 
                 marker_config_json = json.dumps({
@@ -187,7 +183,7 @@ class Rclone:
                     "NoCheckDest": True
                 })
 
-                marker_job = await cls.rc_command("operations/copyfile", ["srcFs=customcloud-remote:",  f"srcRemote={folder['Path']}/.original-path", f"dstFs={drive if drive else '/'}", f"dstRemote={dstRemote}/.original-path", f"_config={marker_config_json}", f"_group=customcloud_cat"])
+                marker_job = await cls.rc_command("operations/copyfile", ["srcFs=customcloud-remote:",  f"srcRemote={folder['Path']}/.original-path", f"dstFs={f'//?/{drive}/' if ':' in drive else '/'}", f"dstRemote={dstRemote}/.original-path", f"_config={marker_config_json}", f"_group=customcloud_cat"])
 
                 await marker_job.wait()
 
@@ -217,10 +213,6 @@ class Rclone:
 
             resolved_path = PathHelper.resolve_path(original_path)
 
-            config_json = json.dumps({
-                "NoUpdateDirModtime": True,
-            })
-            
             filter_rules = {
                 "ExcludeRule": ["/.original-path"],
             }
@@ -244,7 +236,7 @@ class Rclone:
                         relative_exclude_path = os.path.relpath(resolved_exclude_path,resolved_path)
 
                         path_split = relative_exclude_path.split(os.path.sep)
-                        path_depths = ["/".join(path_split[:i + 1]) for i,_ in enumerate(path_split)]
+                        path_depths = ["/".join(path_split[:i + 1]) for i in range(len(path_split))]
 
                         batch_jobs = []
 
@@ -275,14 +267,11 @@ class Rclone:
 
                     sync_job = await cls.rc_command("sync/sync", args)
                 else:
-                    _, filename = os.path.split(resolved_path)
+                    drive, dst_remote = os.path.splitdrive(resolved_path)
+                    filename = os.path.basename(dst_remote)
+                    dst_remote = dst_remote.replace("\\","/")
 
-                    drive, dstRemote = os.path.splitdrive(resolved_path)
-                    if ":" in drive: drive = f"//?/{drive}/"
-
-                    dstRemote = dstRemote.replace("\\","/")
-
-                    args = ["srcFs=customcloud-remote:",f"srcRemote={folder['Path']}/{filename}", f"dstFs={drive if drive else '/'}", f"dstRemote={dstRemote}"]
+                    args = ["srcFs=customcloud-remote:",f"srcRemote={folder['Path']}/{filename}", f"dstFs={f'//?/{drive}/' if ':' in drive else '/'}", f"dstRemote={dst_remote}"]
 
                     filter_json=json.dumps(filter_rules)
 

@@ -41,9 +41,9 @@ function GamePathField({value, disabled, onChange}: GamePathFieldProps)
         value={value.path}
         disabled={disabled}
         onClick={async () => {
-            let startingPath = value.path?.replace(/\\/g,"/") || "/home/deck";
+            let startingPath = value.path || "/home/deck";
 
-            startingPath = await call<[path: string], string>("resolve_path",startingPath)
+            startingPath = (await call<[path: string], string>("resolve_path",startingPath)).replace(/\\/g,"/")
 
             let newPath = await openFilePicker(FileSelectionType.FILE,startingPath);
 
