@@ -168,7 +168,9 @@ class Plugin:
 
                 return {"paths": default_paths, "folder": default_game_folder}
             
-        paths = found_entry["files"]
+        paths = found_entry.get("files", [])
+
+        if len(paths) == 0: return {"paths": [], "folder": default_game_folder}
 
         # Half-Life 2 has its expansions "bundled" with the base game since the 20th anniversary update, and since they won't show up in the app list normally, we need to make sure we get the paths for those as well
         if self.current_app_id == 220:
