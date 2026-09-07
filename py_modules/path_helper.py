@@ -46,3 +46,7 @@ class PathHelper:
         cls.app_install_path = app_install_path
         cls.app_is_native_linux = app_is_native_linux
         cls.steamid64 = steamid64
+
+    @classmethod
+    def override_install_path(cls, new_install_path):
+        cls.app_install_path = new_install_path

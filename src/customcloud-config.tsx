@@ -25,7 +25,8 @@ export interface InitialSettings {
     "sync_save_after_game": boolean,
     "sync_save_before_game": boolean,
     "paths": GamePathSetting[],
-    "game_folder": string
+    "game_folder": string,
+    "shortcut_directory": string
 }
 
 interface GameSettingsProps {
@@ -328,12 +329,13 @@ export default function CustomCloudConfig() {
         "sync_save_after_game": true,
         "sync_save_before_game": true,
         "paths": [],
-        "game_folder": ""
+        "game_folder": "",
+        "shortcut_directory": ""
     })
     const [loadingPaths, setLoadingPaths] = useState(false);
 
-    const isAShortcut = gameDetails?.strShortcutStartDir != undefined;
-    const appIsInstalled = (!isAShortcut && gameDetails?.iInstallFolder != -1) || isAShortcut;
+    const appIsShortcut = gameDetails?.strShortcutStartDir != undefined;
+    const appIsInstalled = (!appIsShortcut && gameDetails?.iInstallFolder != -1) || appIsShortcut;
 
     const updateGameInfo = async(appId: number) =>
     {
@@ -383,7 +385,8 @@ export default function CustomCloudConfig() {
                 setInitialSettings={setInitialSettings}
                 loadingPaths={loadingPaths}
                 setLoadingPaths={setLoadingPaths}
-                appIsInstalled={appIsInstalled} />
+                appIsInstalled={appIsInstalled}
+                appIsShortcut={appIsShortcut} />
             ),
             visible: true,
             route: '/customcloud-config/gamepaths',

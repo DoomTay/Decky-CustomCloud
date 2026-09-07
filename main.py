@@ -123,6 +123,8 @@ class Plugin:
         if not os.path.exists(manifest_path):
             await self.download_ludusavi_manifest()
 
+        if self.app_is_shortcut: self.app_settings.setSetting("shortcut_directory", self.shortcut_directory)
+
         with open (manifest_path, "r", encoding="utf-8") as file:
             decky.logger.info("Loading manifest")
             
@@ -166,11 +168,11 @@ class Plugin:
                 self.app_settings.setSetting("game_folder", default_game_folder)
                 self.app_settings.commit()
 
-                return {"paths": default_paths, "folder": default_game_folder}
+                return {"paths": default_paths, "folder": default_game_folder, "shortcut_directory": self.shortcut_directory}
             
         paths = found_entry.get("files", [])
 
-        if len(paths) == 0: return {"paths": [], "folder": default_game_folder}
+        if len(paths) == 0: return {"paths": [], "folder": default_game_folder, "shortcut_directory": self.shortcut_directory}
 
         # Half-Life 2 has its expansions "bundled" with the base game since the 20th anniversary update, and since they won't show up in the app list normally, we need to make sure we get the paths for those as well
         if self.current_app_id == 220:
@@ -209,7 +211,7 @@ class Plugin:
         self.app_settings.setSetting("paths", default_paths)
         self.app_settings.commit()
 
-        return {"paths": default_paths, "folder": default_game_folder}
+        return {"paths": default_paths, "folder": default_game_folder, "shortcut_directory": self.shortcut_directory}
 
     async def get_global_setting(self, key):
         if not self.global_settings: return
@@ -232,13 +234,19 @@ class Plugin:
         app_install_path = appInfo['strInstallFolder']
         steamid64 = int(appInfo['strOwnerSteamID'])
 
+        if app_is_shortcut: app_install_path = await self.get_app_setting(current_app_id,"shortcut_directory","")
+
         PathHelper.update_app_info(current_app_id,app_install_path,app_is_native_linux,steamid64)
-    
+
+    async def override_install_path(cls, new_install_path):
+        PathHelper.override_install_path(new_install_path)
+
     async def get_app_settings(self,appInfo):
         self.app_settings = SettingsManager(name=f"settings_{appInfo['unAppID']}", settings_directory=settings_dir)
         self.current_app_id = appInfo['unAppID']
         self.app_name = appInfo['strDisplayName']
         self.app_is_shortcut = 'strShortcutStartDir' in appInfo
+        self.shortcut_directory = appInfo.get('strShortcutStartDir', None)
         self.app_is_installed = (not self.app_is_shortcut and appInfo['iInstallFolder'] != -1) or self.app_is_shortcut
         self.app_is_native_linux = "steamlinuxruntime" in appInfo['strCompatToolName'] or (self.app_is_shortcut and appInfo['strCompatToolName'] == "" and is_linux)
 

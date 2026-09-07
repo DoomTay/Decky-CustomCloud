@@ -69,10 +69,11 @@ interface GamePathsProps {
     setInitialSettings: React.Dispatch<React.SetStateAction<InitialSettings>>,
     loadingPaths: boolean,
     setLoadingPaths: React.Dispatch<React.SetStateAction<boolean>>,
-    appIsInstalled: boolean
+    appIsInstalled: boolean,
+    appIsShortcut: boolean,
 }
 
-export default function GamePaths({initialSettings, setInitialSettings, loadingPaths, setLoadingPaths, appIsInstalled}: GamePathsProps) {
+export default function GamePaths({initialSettings, setInitialSettings, loadingPaths, setLoadingPaths, appIsInstalled, appIsShortcut}: GamePathsProps) {
     const gamePaths: GamePathSetting[] = initialSettings["paths"] || [];
 
     function addPath()
@@ -121,7 +122,7 @@ export default function GamePaths({initialSettings, setInitialSettings, loadingP
             <code>&lt;xdgConfig&gt;</code> - Linux user config folder, e.g. <code>/home/deck/.config</code><br />
             <code>&lt;xdgData&gt;</code> - Linux user data folder, e.g. <code>/home/deck/.local/share</code><br />
             <code>&lt;storeUserId&gt;</code> - Your numerical Steam ID. If it is under Steam's "userdata" folder, it will resolve to your shorter steamID3. Otherwise, it will be your 17-digit steamID64<br />
-            <code>&lt;base&gt;</code> - The full path where the game itself is installed to. Can not be automatically resolved with non-Steam shortcuts.<br />
+            <code>&lt;base&gt;</code> - The full path where the game itself is installed to. Will have to be set manually with non-Steam shortcuts.<br />
             <code>&lt;root&gt;</code> - The path where Steam itself is installed, e.g. /home/deck/.local/share/Steam or C:\Program Files\Steam<br />
             <br />
             On a Windows device, most of these will resolve to your actual paths on Windows. On a SteamOS/Linux device, they will instead resolve to Proton equivalents under a Proton prefix.</div>}
@@ -217,6 +218,21 @@ export default function GamePaths({initialSettings, setInitialSettings, loadingP
         </DialogButton>
         </div>
         </DialogControlsSection>
+        {appIsShortcut && 
+        <TextField
+            label="Shortcut Path"
+            value={initialSettings["shortcut_directory"]}
+            tooltip="The base directory where the shortcut is installed to. Older games often save data under here."
+            onClick={async (e) => {
+                let startingPath = e.target.value || "/home/deck";
+                startingPath = startingPath.replace(/\\/g,"/")
+
+                let newPath = await openFilePicker(FileSelectionType.FOLDER,startingPath,false);
+
+                setSetting("shortcut_directory", newPath.path);
+                setInitialSettings({...initialSettings, "shortcut_directory": newPath.path});
+                await call<[path: string], void>("override_install_path",newPath.path)
+            }} />}
         <ButtonItem
         label="Reset paths to defaults"
         onClick={() => {
@@ -230,7 +246,12 @@ export default function GamePaths({initialSettings, setInitialSettings, loadingP
                     call<[], any>("set_default_paths").then((defaultSettings) => {
                         setSetting("paths", defaultSettings.paths);
                         setSetting("game_folder", defaultSettings.folder);
-                        setInitialSettings({...initialSettings, "paths": defaultSettings.paths, "game_folder": defaultSettings.folder});
+                        if(defaultSettings.shortcut_directory)
+                        {
+                            setSetting("shortcut_directory", defaultSettings.shortcut_directory);
+                            call<[path: string], void>("override_install_path",defaultSettings.shortcut_directory);
+                        }
+                        setInitialSettings({...initialSettings, "paths": defaultSettings.paths, "game_folder": defaultSettings.folder, "shortcut_directory": defaultSettings.shortcut_directory});
                         setLoadingPaths(false);
                     });
                 }}
