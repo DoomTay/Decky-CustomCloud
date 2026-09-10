@@ -19,7 +19,7 @@ class Rclone:
         decky.logger.info("Starting rclone RC daemon")
         timestamp = datetime.now().strftime('%Y-%m-%d %H.%M.%S')
 
-        await asyncio.create_subprocess_exec(rclone_path, "rcd", "--rc-no-auth", "--config", os.path.join(os.environ["DECKY_PLUGIN_SETTINGS_DIR"],"rclone.conf"), "-vv", f"--log-file={os.path.join(log_dir, f'rclone-{app_id}-{timestamp}.log')}")
+        await asyncio.create_subprocess_exec(rclone_path, "--contimeout", "2s", "--timeout", "5s", "--low-level-retries", "1", "--retries", "1", "rcd", "--rc-no-auth", "--config", os.path.join(os.environ["DECKY_PLUGIN_SETTINGS_DIR"],"rclone.conf"), "-vv", f"--log-file={os.path.join(log_dir, f'rclone-{app_id}-{timestamp}.log')}")
 
         await asyncio.sleep(1)
     
