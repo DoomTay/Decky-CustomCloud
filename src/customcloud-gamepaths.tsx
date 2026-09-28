@@ -13,12 +13,7 @@ import {
 } from "@decky/ui";
 import { FaInfoCircle, FaPlus, FaTrash } from "react-icons/fa";
 import { Fragment } from "react/jsx-runtime";
-import { InitialSettings, setSetting } from "./customcloud-config";
-
-export interface GamePathSetting {
-    path: string,
-    type: string
-}
+import { GamePathSetting, useAppSettings } from "./settings";
 
 interface GamePathFieldProps {
     value: GamePathSetting,
@@ -64,16 +59,9 @@ function GamePathField({value, disabled, onChange}: GamePathFieldProps)
     )
 }
 
-interface GamePathsProps {
-    initialSettings: InitialSettings,
-    setInitialSettings: React.Dispatch<React.SetStateAction<InitialSettings>>,
-    loadingPaths: boolean,
-    setLoadingPaths: React.Dispatch<React.SetStateAction<boolean>>,
-    appIsInstalled: boolean,
-    appIsShortcut: boolean,
-}
+export default function GamePaths() {
+    const { initialSettings, setSetting, loadingPaths, setLoadingPaths, appIsShortcut, appIsInstalled } = useAppSettings();
 
-export default function GamePaths({initialSettings, setInitialSettings, loadingPaths, setLoadingPaths, appIsInstalled, appIsShortcut}: GamePathsProps) {
     const gamePaths: GamePathSetting[] = initialSettings["paths"] || [];
 
     function addPath()
@@ -83,8 +71,6 @@ export default function GamePaths({initialSettings, setInitialSettings, loadingP
 
     function setGamePaths(newPaths: GamePathSetting[])
     {
-        setInitialSettings({...initialSettings, "paths": newPaths});
-
         setSetting("paths", newPaths);
     }
 
@@ -191,7 +177,6 @@ export default function GamePaths({initialSettings, setInitialSettings, loadingP
                 defaultValue={initialSettings["game_folder"]}
                 onBlur={(e) => {
                     setSetting("game_folder", e.target.value);
-                    setInitialSettings({...initialSettings, "game_folder": e.target.value});
                     }} />
             </div>
         </Field>
@@ -230,7 +215,6 @@ export default function GamePaths({initialSettings, setInitialSettings, loadingP
                 let newPath = await openFilePicker(FileSelectionType.FOLDER,startingPath,false);
 
                 setSetting("shortcut_directory", newPath.path);
-                setInitialSettings({...initialSettings, "shortcut_directory": newPath.path});
                 await call<[path: string], void>("override_install_path",newPath.path)
             }} />}
         <ButtonItem
@@ -251,7 +235,6 @@ export default function GamePaths({initialSettings, setInitialSettings, loadingP
                             setSetting("shortcut_directory", defaultSettings.shortcut_directory);
                             call<[path: string], void>("override_install_path",defaultSettings.shortcut_directory);
                         }
-                        setInitialSettings({...initialSettings, "paths": defaultSettings.paths, "game_folder": defaultSettings.folder, "shortcut_directory": defaultSettings.shortcut_directory});
                         setLoadingPaths(false);
                     });
                 }}

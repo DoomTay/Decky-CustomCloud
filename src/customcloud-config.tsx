@@ -2,7 +2,6 @@ import { call, addEventListener, removeEventListener, toaster, callable } from "
 import {
   PanelSectionRow,
   Dropdown,
-  SingleDropdownOption,
   ToggleField,
   ButtonItem,
   SidebarNavigation,
@@ -13,42 +12,25 @@ import {
   ConfirmModal,
   showModal
 } from "@decky/ui";
-import { AppDetails } from "@decky/ui/dist/globals/steam-client/App";
 import { ReactNode, useEffect, useState } from "react";
 import { FaCloudUploadAlt, FaCloudDownloadAlt, FaCog, FaSlash, FaFileAlt } from "react-icons/fa";
-import GamePaths, { GamePathSetting } from "./customcloud-gamepaths";
+import GamePaths from "./customcloud-gamepaths";
 import LogView from "./customcloud-logview";
-
-export interface InitialSettings {
-    "sync_config_after_game": boolean,
-    "sync_config_before_game": boolean,
-    "sync_save_after_game": boolean,
-    "sync_save_before_game": boolean,
-    "paths": GamePathSetting[],
-    "game_folder": string,
-    "shortcut_directory": string
-}
-
-interface GameSettingsProps {
-    selectedGame: number | null,
-    gameDetails: AppDetails | null,
-    appIsInstalled: boolean,
-    initialSettings: InitialSettings,
-    setInitialSettings: React.Dispatch<React.SetStateAction<InitialSettings>>,
-    setSelectedGame: React.Dispatch<React.SetStateAction<number | null>>,
-}
+import { AppSettingsProvider, useAppSettings } from "./settings";
 
 const rclonePush = callable<[push_config: boolean,push_save: boolean], void>("rclone_push");
 const rclonePull = callable<[pull_config: boolean,pull_save: boolean], void>("rclone_pull");
 
 declare const collectionStore: any;
 
-function GameSettings({selectedGame, gameDetails, appIsInstalled, initialSettings, setInitialSettings, setSelectedGame}: GameSettingsProps)
+function GameSettings()
 {
     const [rcloneStatus, setRcloneStatus] = useState<string>("idle");
     const [rcloneProgress, setRcloneProgress] = useState<number | undefined>();
     const [rcloneEta, setRcloneEta] = useState<number>(0);
-    const [installedGames, setInstalledGames] = useState<SingleDropdownOption[]>([]);
+    const installedGames = collectionStore.myGamesCollection.allApps.filter((app: any) => app.is_available_on_current_platform == true).map((app: any) => ({data: app.appid, label: app.display_name}));
+
+    const { initialSettings, setSetting, gameDetails, appIsInstalled, appId, setAppId } = useAppSettings();
 
     const steamCloudEnabled = gameDetails?.bCloudEnabledForApp ?? true;
 
@@ -56,17 +38,7 @@ function GameSettings({selectedGame, gameDetails, appIsInstalled, initialSetting
 
     useEffect(() =>
     {
-        if(installedGames.length == 0) return;
-
-        setSelectedGame(selectedGame || installedGames[0].data);
-
-    }, [installedGames])
-
-    useEffect(() =>
-    {
-        const allGames = collectionStore.myGamesCollection.allApps.filter((app: any) => app.is_available_on_current_platform == true);
-
-        setInstalledGames(allGames.map((app: any) => ({data: app.appid, label: app.display_name})));
+        setAppId(appId || installedGames[0].data);
     }, [])
 
     useEffect(() => {
@@ -115,8 +87,8 @@ function GameSettings({selectedGame, gameDetails, appIsInstalled, initialSetting
         <DialogControlsSection>
             <Dropdown
             rgOptions={installedGames}
-            selectedOption={selectedGame}
-            onChange={(newSelection) => setSelectedGame(newSelection.data)}
+            selectedOption={appId}
+            onChange={(newSelection) => setAppId(newSelection.data)}
             >
             </Dropdown>
         
@@ -126,8 +98,6 @@ function GameSettings({selectedGame, gameDetails, appIsInstalled, initialSetting
         <ToggleField
             label="Push config data to cloud after ending game"
             onChange={(checked) => {
-                setInitialSettings({...initialSettings, "sync_config_after_game": checked});
-
                 setSetting("sync_config_after_game", checked);
             }}
             disabled={!appIsInstalled}
@@ -155,8 +125,6 @@ function GameSettings({selectedGame, gameDetails, appIsInstalled, initialSetting
         <ToggleFieldWithWarning
             label="Pull config data from cloud when starting game"
             onChange={(checked) => {
-                setInitialSettings({...initialSettings, "sync_config_before_game": checked});
-
                 setSetting("sync_config_before_game", checked);
             }}
             warning={CLOUD_WARNING}
@@ -185,8 +153,6 @@ function GameSettings({selectedGame, gameDetails, appIsInstalled, initialSetting
         <ToggleField
             label="Push save data to cloud after ending game"
             onChange={(checked) => {
-                setInitialSettings({...initialSettings, "sync_save_after_game": checked});
-
                 setSetting("sync_save_after_game", checked);
             }}
             disabled={!appIsInstalled}
@@ -214,8 +180,6 @@ function GameSettings({selectedGame, gameDetails, appIsInstalled, initialSetting
         <ToggleFieldWithWarning
             label="Pull save data from cloud when starting game"
             onChange={(checked) => {
-                setInitialSettings({...initialSettings, "sync_save_before_game": checked});
-
                 setSetting("sync_save_before_game", checked);
             }}
             warning={CLOUD_WARNING}
@@ -314,64 +278,14 @@ function ToggleFieldWithWarning({label, warning, disabled, checked, onChange, is
     </ToggleField>
 }
 
-export function setSetting(key: string, value: any)
-{
-    call<[key: string, value: any], any>("set_app_setting",key, value);
-}
-
 export default function CustomCloudConfig() {
-
-    const [selectedGame, setSelectedGame] = useState<number|null>(null);
-    const [gameDetails, setGameDetails] = useState<AppDetails|null>(null);
-    const [initialSettings, setInitialSettings] = useState<InitialSettings>({
-        "sync_config_after_game": true,
-        "sync_config_before_game": true,
-        "sync_save_after_game": true,
-        "sync_save_before_game": true,
-        "paths": [],
-        "game_folder": "",
-        "shortcut_directory": ""
-    })
-    const [loadingPaths, setLoadingPaths] = useState(false);
-
-    const appIsShortcut = gameDetails?.strShortcutStartDir != undefined;
-    const appIsInstalled = (!appIsShortcut && gameDetails?.iInstallFolder != -1) || appIsShortcut;
-
-    const updateGameInfo = async(appId: number) =>
-    {
-        const { unregister } = SteamClient.Apps.RegisterForAppDetails(appId, async (details) => {
-            unregister();
-
-            setLoadingPaths(true);
-
-            let newSettings = await call<[appInfo: AppDetails], any>("get_app_settings",details);
-            setInitialSettings(newSettings);
-
-            setGameDetails(details);
-
-            setLoadingPaths(false);
-        })
-    }
-
-    useEffect(() =>
-    {
-        if(selectedGame == null) return;
-
-        updateGameInfo(selectedGame);
-    }, [selectedGame])
-
-    return <SidebarNavigation pages={
+    return <AppSettingsProvider>
+    <SidebarNavigation pages={
         [
         {
             title: "Game Settings",
             content: (
-                <GameSettings
-                selectedGame={selectedGame}
-                gameDetails={gameDetails}
-                appIsInstalled={appIsInstalled}
-                initialSettings={initialSettings}
-                setInitialSettings={setInitialSettings}
-                setSelectedGame={setSelectedGame} />
+                <GameSettings />
             ),
             visible: true,
             route: '/customcloud-config/settings',
@@ -380,13 +294,7 @@ export default function CustomCloudConfig() {
         {
             title: "Game Paths",
             content: (
-                <GamePaths
-                initialSettings={initialSettings}
-                setInitialSettings={setInitialSettings}
-                loadingPaths={loadingPaths}
-                setLoadingPaths={setLoadingPaths}
-                appIsInstalled={appIsInstalled}
-                appIsShortcut={appIsShortcut} />
+                <GamePaths />
             ),
             visible: true,
             route: '/customcloud-config/gamepaths',
@@ -402,5 +310,6 @@ export default function CustomCloudConfig() {
             icon: <FaFileAlt />
         }
         ]
-    } />;
+    } />
+    </AppSettingsProvider>;
 };

@@ -6,7 +6,12 @@ import {
   staticClasses,
   showModal,
   ConfirmModal,
-  TextField
+  TextField,
+  findInReactTree,
+  afterPatch,
+  createReactTreePatcher,
+  appDetailsClasses,
+  useParams,
 } from "@decky/ui";
 import {
   addEventListener,
@@ -19,8 +24,10 @@ import {
 } from "@decky/api"
 import { FaCloud } from "react-icons/fa";
 import CustomCloudConfig from "./customcloud-config";
+import CustomCloudStatus from "./customcloud-status";
+import { getSetting } from "./settings";
 import startConfigWizard from "./rclone-wizard";
-import { useEffect, useRef, useState } from "react";
+import { ReactElement, useEffect, useRef, useState } from "react";
 import { AppLifetimeNotification } from "@decky/ui/dist/globals/steam-client/GameSessions";
 import { ELaunchSource } from "@decky/ui/dist/globals/steam-client/App";
 
@@ -28,7 +35,6 @@ const PLUGIN_NAME = "Decky CustomCloud";
 
 const downloadManifest = callable<[], {success: boolean, status_code: number, status_text: string, error: string}>("download_ludusavi_manifest");
 const updateRclone = callable<[], {success: boolean, status_code: number, status_text: string, error: string}>("update_rclone");
-const getSetting = callable<[appId: number, setting: string, default_value: any], any>("get_app_setting");
 let gameIsRunning = false;
 
 declare const appDetailsStore: any;
@@ -213,7 +219,7 @@ function CloudDownloadModal({downloadConfigBeforeGame,downloadSaveBeforeGame,onC
     }
   },[])
 
-  function updateProgress(newProgress: number,eta: number,message: string,error: string)
+  function updateProgress(newProgress: number,_: number,_2: string,error: string)
   {
     if(downloadCancelled.current == true) return;
     setProgress(newProgress);
@@ -337,9 +343,33 @@ export default definePlugin(() => {
   })
 
   const configPatch = routerHook.addPatch('/library/app/:appid',
-    (props) => {
-      console.log("Investigating", props.children);
-      return props
+    (tree: any) => {
+      const route = findInReactTree(tree, (x: any) =>  x?.renderFunc);
+
+      if(route) {
+        afterPatch(route, "renderFunc", createReactTreePatcher([
+            (tree: any) => findInReactTree(tree, (x: any) => x?.props?.children?.props?.overview)?.props?.children
+          ], (_: Array<Record<string, unknown>>, ret?: ReactElement) => {
+            const container = findInReactTree(ret, (x: ReactElement) => x?.props?.className?.includes(appDetailsClasses.InnerContainer));
+
+            if (typeof container !== 'object') {
+              return ret
+            }
+
+            const { appid: pathId } = useParams<{ appid: string }>();
+
+            container.props.children.splice(
+              1,
+              0,
+              <CustomCloudStatus appId={Number(pathId)} />
+            )
+
+            return ret;
+          })
+        )
+      }
+
+      return tree;
     })
 
   return {
