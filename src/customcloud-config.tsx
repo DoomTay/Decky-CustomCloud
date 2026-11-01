@@ -118,7 +118,7 @@ function GameSettings()
             disabled={!appIsInstalled || rcloneStatus != "idle"}
             nProgress={rcloneProgress}
             sOperationText={rcloneProgress != undefined ? "Uploading " + Math.floor(rcloneProgress) + "%" : "Uploading"}
-            rtEstimatedCompletionTime={String(rcloneEta) + " " + (Number(new Date()) / 1000) + rcloneEta}
+            rtEstimatedCompletionTime={(Number(new Date()) / 1000) + rcloneEta}
         />
         </DialogControlsSection>
         <DialogControlsSection>
@@ -220,7 +220,7 @@ interface ButtonProgressBarSwitchProps {
     disabled: boolean,
     nProgress: number | undefined,
     sOperationText: string,
-    rtEstimatedCompletionTime?: ReactNode
+    rtEstimatedCompletionTime?: number
 }
 
 function ButtonProgressBarSwitch({switchCondition, onClick, label, buttonBody, disabled, nProgress, sOperationText,rtEstimatedCompletionTime}: ButtonProgressBarSwitchProps) {
