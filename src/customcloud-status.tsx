@@ -19,14 +19,30 @@ export default function CustomCloudStatus({appId}: CustomCloudStatusProps)
   useEffect(() => {
     updateRcloneStatus();
     addEventListener("progress_event",updateProgress);
-    
-    Promise.all([getSetting(appId,"sync_config_before_game",false),getSetting(appId,"sync_save_before_game",false),getSetting(appId,"sync_config_after_game",false),getSetting(appId,"sync_save_after_game",false)]).then((settings) => {
-      if(settings.some(setting => setting == true)) setIsVisible(true);
 
-      const syncConfig = settings[0] || settings[2];
-      const syncSave = settings[1] || settings[3];
+    const { unregister } = SteamClient.Apps.RegisterForAppDetails(appId, async (details) => {
+        unregister();
 
-      //TODO: run a passive sync check based on syncConfig and/or syncSave
+        call<[appDetails: any], void>("update_app_info",details);
+
+        Promise.all([getSetting(appId,"sync_config_before_game",false),getSetting(appId,"sync_save_before_game",false),getSetting(appId,"sync_config_after_game",false),getSetting(appId,"sync_save_after_game",false)]).then(async (settings) => {
+          if(settings.some(setting => setting == true)) setIsVisible(true);
+
+          const checkConfig = settings[0] || settings[2];
+          const checkSave = settings[1] || settings[3];
+
+          if(checkConfig || checkSave)
+          {
+            setStatusText("Checking")
+            let checkResults = await call<[checkConfig: boolean, checkSave: boolean], any>("rclone_check", checkConfig, checkSave);
+            
+            const allOk = checkResults.map((result: any) => result.results.every((subResult: any) => subResult.status == "OK"));
+            
+            if(checkResults.some((result: any) => result.results.some((subResult: any) => typeof subResult.error == "string"))) setStatusText("Sync error");
+            else if(allOk.every((check:boolean) => check == true)) setStatusText("Up to date");
+            else setStatusText("Out of sync");
+          }
+        })
     })
 
     return () => {

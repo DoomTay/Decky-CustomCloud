@@ -340,6 +340,30 @@ class Plugin:
         stdout, _ = await config_init.communicate()
 
         return json.loads(stdout.decode())
+
+    async def rclone_check(self, check_config, check_save):
+        await Rclone.start_rcd(self.current_app_id)
+        
+        check_batches = []
+
+        game_cloud_folder = self.app_settings.getSetting("game_folder", f"game-{str(self.current_app_id)}")
+        base_backup_path = self.global_settings.getSetting("cloud_directory", "CustomCloud-Backup")
+
+        app_paths = self.app_settings.getSetting("paths",[])
+
+        config_paths = [path for path in app_paths if path["type"] == "config"]
+        save_paths = [path for path in app_paths if path["type"] == "save"]
+        configsave_paths = [path for path in app_paths if path["type"] == "configsave"]
+
+        if check_config and len(config_paths) > 0: check_batches.append(Rclone.check(config_paths,base_backup_path,game_cloud_folder,save_paths))
+        if check_save and len(save_paths) > 0: check_batches.append(Rclone.check(save_paths,base_backup_path,game_cloud_folder,config_paths))
+        if len(configsave_paths) > 0: check_batches.append(Rclone.check(configsave_paths,base_backup_path,game_cloud_folder))
+        
+        results = await asyncio.gather(*check_batches)
+
+        await Rclone.stop_rcd()
+
+        return results
     
     async def get_rclone_log(self):
         no_log_file = "No log file available"

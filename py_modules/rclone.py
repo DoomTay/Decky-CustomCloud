@@ -40,6 +40,64 @@ class Rclone:
         return await asyncio.create_subprocess_exec(rclone_path, "rc", command, *args)
 
     @classmethod
+    async def check(cls,paths,base_backup_path,game_cloud_folder,exclude_paths=[]):
+        batch_jobs = []
+
+        for i,path in enumerate(paths):
+            resolved_path = PathHelper.resolve_path(path["path"])
+            source_path = resolved_path
+            remote_path = "/".join([base_backup_path,game_cloud_folder,f"{path['type']}-{i}"])
+            decky.logger.info("Checking",remote_path)
+
+            filter_rules = {}
+
+            if "*" in source_path:
+                base_path, filter = cls.split_filter(source_path)
+
+                source_path = base_path
+
+                filter_rules["IncludeRule"] = [filter]
+            elif os.path.isfile(source_path):
+                base_path, filename = os.path.split(source_path)
+
+                source_path = base_path
+
+                filter_rules["IncludeRule"] = [filename]
+
+            filter_rules["ExcludeRule"] = []
+
+            relative_exclude_paths = []
+
+            for exclude_path in exclude_paths:
+                resolved_exclude_path = PathHelper.resolve_path(exclude_path["path"])
+                if resolved_path not in resolved_exclude_path: continue
+
+                relative_exclude_path = os.path.relpath(resolved_exclude_path,resolved_path)
+
+                if os.path.isdir(resolved_exclude_path): relative_exclude_path += "/**"
+
+                relative_exclude_paths.append(f"/{relative_exclude_path}".replace("\\","/"))
+
+            filter_rules["ExcludeRule"].extend(relative_exclude_paths)
+
+            filter_rules["ExcludeRule"].append("/.original-path")
+
+            filter_json=json.dumps(filter_rules)
+
+            params = {
+                "_path": "operations/check",
+                "srcFs": source_path,
+                "dstFs": f"customcloud-remote:{remote_path}",
+                "_filter": filter_json
+            }
+            
+            batch_jobs.append(params)
+
+        batch_json = json.dumps({"inputs": batch_jobs})
+
+        return await cls.rc_get_result("job/batch", ["--json", batch_json])
+
+    @classmethod
     async def kill_all_jobs(cls):
         decky.logger.info("Killing all running rclone jobs")
 
